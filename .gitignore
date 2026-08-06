@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+inventory.json
+config/inventory.json
+*.log
+.DS_Store

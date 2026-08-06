@@ -1,0 +1,52 @@
+{
+  "defaults": {
+    "readOnly": false,
+    "requireConfirm": true
+  },
+  "hosts": [
+    {
+      "id": "pve-homelab",
+      "name": "Proxmox Homelab",
+      "provider": "proxmox",
+      "url": "https://192.168.1.10:8006",
+      "tokenId": "root@pam!mcp-token",
+      "tokenSecret": "${PROXMOX_HOMELAB_TOKEN}",
+      "verifySsl": false,
+      "readOnly": false,
+      "allowedTools": ["list-vms", "get-vm", "vm-power", "list-nodes", "get-node-status", "list-vm-snapshots", "create-vm-snapshot", "list-proxmox-tasks"],
+      "tags": ["homelab", "virtualization"]
+    },
+    {
+      "id": "virt-panel",
+      "name": "Virtualizor Panel",
+      "provider": "virtualizor",
+      "url": "https://panel.example.com:4085",
+      "apiKey": "${VIRTUALIZOR_API_KEY}",
+      "apiPass": "${VIRTUALIZOR_API_PASS}",
+      "readOnly": true,
+      "tags": ["production", "virtualization"]
+    },
+    {
+      "id": "bare-metal-01",
+      "name": "Servidor Físico 1",
+      "provider": "ssh",
+      "host": "10.0.0.5",
+      "port": 22,
+      "username": "root",
+      "privateKeyPath": "~/.ssh/id_rsa",
+      "allowedTools": ["ssh-exec", "ssh-read-file", "get-node-status"],
+      "tags": ["physical", "production"]
+    },
+    {
+      "id": "vps-web-01",
+      "name": "VPS Web Producción",
+      "provider": "ssh",
+      "host": "203.0.113.10",
+      "port": 22,
+      "username": "deploy",
+      "privateKeyPath": "~/.ssh/deploy_key",
+      "readOnly": true,
+      "tags": ["vps", "web"]
+    }
+  ]
+}
