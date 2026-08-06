@@ -1,6 +1,6 @@
 {
   "name": "mcp-sysadmin",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Provider-agnostic MCP server for physical servers, Proxmox, Virtualizor, and SSH hosts.",
   "type": "module",
   "main": "dist/index.js",

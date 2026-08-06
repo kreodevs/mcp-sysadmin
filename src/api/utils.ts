@@ -125,11 +125,7 @@ export function formatError(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const axiosError = error as AxiosError;
     const status = axiosError.response?.status;
-    const details = axiosError.response?.data;
-    const message =
-      typeof details === "object" && details && "message" in details
-        ? String((details as JsonRecord).message)
-        : axiosError.message;
+    const message = axiosError.message;
     return status ? `${message} (HTTP ${status})` : message;
   }
 

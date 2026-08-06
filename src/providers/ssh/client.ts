@@ -3,6 +3,8 @@ import { Client, ConnectConfig } from "ssh2";
 import { resolvePrivateKeyPath, SysadminError } from "../../api/utils.js";
 import { getSshTimeout } from "../../config/loader.js";
 import { SshHost } from "../../config/schema.js";
+import { fingerprintMatchesKey } from "../../security/policy.js";
+import { isProductionMode } from "../../security/startup.js";
 
 export type SshExecResult = {
   stdout: string;
@@ -26,8 +28,15 @@ function buildConnectConfig(host: SshHost): ConnectConfig {
   } else if (host.password) {
     config.password = host.password;
   } else {
+    throw new SysadminError(`SSH host ${host.id} requires privateKeyPath or password`);
+  }
+
+  if (host.hostKeyFingerprint) {
+    const expected = host.hostKeyFingerprint;
+    config.hostVerifier = (key: Buffer) => fingerprintMatchesKey(key, expected);
+  } else if (isProductionMode()) {
     throw new SysadminError(
-      `SSH host ${host.id} requires privateKeyPath or password`,
+      `SSH host ${host.id}: hostKeyFingerprint required in production mode. Run: ssh-keyscan -H ${host.host} | ssh-keygen -lf -`,
     );
   }
 
@@ -50,7 +59,12 @@ function withClient<T>(host: SshHost, fn: (client: Client) => Promise<T>): Promi
 }
 
 export class SshClient {
-  async exec(host: SshHost, command: string, cwd?: string, timeoutMs?: number): Promise<SshExecResult> {
+  async execInternal(
+    host: SshHost,
+    command: string,
+    cwd?: string,
+    timeoutMs?: number,
+  ): Promise<SshExecResult> {
     const fullCommand = cwd ? `cd ${shellQuote(cwd)} && ${command}` : command;
     const timeout = timeoutMs ?? getSshTimeout();
 
@@ -78,7 +92,6 @@ export class SshClient {
           }
 
           streamRef = stream;
-
           let stdout = "";
           let stderr = "";
 
@@ -101,14 +114,47 @@ export class SshClient {
     );
   }
 
-  async readFile(host: SshHost, path: string, maxBytes = 256_000): Promise<string> {
-    const result = await this.exec(
+  async exec(
+    host: SshHost,
+    command: string,
+    cwd?: string,
+    timeoutMs?: number,
+  ): Promise<SshExecResult> {
+    return this.execInternal(host, command, cwd, timeoutMs);
+  }
+
+  async resolveRemotePath(host: SshHost, path: string): Promise<string> {
+    const quoted = shellQuote(path);
+    const result = await this.execInternal(
       host,
-      `if [ -f ${shellQuote(path)} ]; then head -c ${maxBytes} ${shellQuote(path)}; else echo "__FILE_NOT_FOUND__"; fi`,
+      `if [ -e ${quoted} ] || [ -L ${quoted} ]; then readlink -f ${quoted}; else echo ${quoted}; fi`,
+      undefined,
+      10_000,
+    );
+
+    const resolved = result.stdout.trim().split("\n").pop()?.trim();
+    if (!resolved) {
+      throw new SysadminError(`Could not resolve remote path on ${host.id}: ${path}`);
+    }
+    if (resolved.includes("..")) {
+      throw new SysadminError(`Resolved path contains traversal on ${host.id}: ${resolved}`);
+    }
+    return resolved;
+  }
+
+  async readFile(host: SshHost, path: string, maxBytes = 256_000): Promise<string> {
+    const resolved = await this.resolveRemotePath(host, path);
+    return this.readResolvedFile(host, resolved, maxBytes);
+  }
+
+  async readResolvedFile(host: SshHost, resolvedPath: string, maxBytes = 256_000): Promise<string> {
+    const result = await this.execInternal(
+      host,
+      `if [ -f ${shellQuote(resolvedPath)} ]; then head -c ${maxBytes} ${shellQuote(resolvedPath)}; else echo "__FILE_NOT_FOUND__"; fi`,
     );
 
     if (result.stdout.trim() === "__FILE_NOT_FOUND__") {
-      throw new SysadminError(`File not found on ${host.id}: ${path}`);
+      throw new SysadminError(`File not found on ${host.id}: ${resolvedPath}`);
     }
 
     return result.stdout;
@@ -125,7 +171,7 @@ export class SshClient {
       "cat /proc/loadavg 2>/dev/null || echo '0 0 0'",
     ].join("; ");
 
-    const result = await this.exec(host, script);
+    const result = await this.execInternal(host, script);
     const lines = result.stdout.split("\n").map((line) => line.trim()).filter(Boolean);
     const startIdx = lines.indexOf("__STATS_START__");
 
@@ -137,7 +183,6 @@ export class SshClient {
       disk: parseDiskLine(lines[startIdx + 4]),
       cpuCores: Number(lines[startIdx + 5] ?? 0) || undefined,
       loadAverage: lines[startIdx + 6] ?? "",
-      raw: { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode },
     };
   }
 }

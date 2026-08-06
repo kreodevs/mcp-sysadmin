@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import { optionalEnv, SysadminError } from "../api/utils.js";
-import { Host, Inventory } from "../config/schema.js";
+import { Host, Inventory, SshHost } from "../config/schema.js";
+import { isProductionMode } from "./startup.js";
 
 export type ToolCategory = "read" | "write" | "destructive";
 
@@ -18,7 +20,34 @@ export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   "ssh-read-file": "write",
 };
 
-const DESTRUCTIVE_VM_ACTIONS = new Set(["stop", "shutdown", "reboot", "reset"]);
+/** Safe command prefixes for production allowlist (extended per-host via inventory). */
+export const DEFAULT_SSH_ALLOWLIST: RegExp[] = [
+  /^systemctl\s+(status|is-active|is-enabled|is-failed|list-units|show)\b/i,
+  /^journalctl\b/i,
+  /^docker\s+(ps|logs|inspect|stats|info|version)\b/i,
+  /^kubectl\s+get\b/i,
+  /^nginx\s+-t\b/i,
+  /^apachectl\s+-t\b/i,
+  /^php\s+-v\b/i,
+  /^node\s+-v\b/i,
+  /^npm\s+ls\b/i,
+  /^ls\b/i,
+  /^df\b/i,
+  /^free\b/i,
+  /^uptime\b/i,
+  /^hostname\b/i,
+  /^cat\s+/i,
+  /^head\s+-c\s+\d+\s+/i,
+  /^tail\s+-n\s+\d+\s+/i,
+  /^grep\s+-/i,
+  /^wc\s+/i,
+  /^stat\s+/i,
+  /^ss\s+/i,
+  /^netstat\b/i,
+  /^ip\s+(addr|route|link)\b/i,
+  /^ping\s+-c\s+\d+/i,
+  /^curl\s+-sS?\s+(https?:\/\/)/i,
+];
 
 const SSH_BLOCKED_PATTERNS: RegExp[] = [
   /\brm\s+(-[^\s]*\s+)*-[^\s]*r/i,
@@ -28,7 +57,7 @@ const SSH_BLOCKED_PATTERNS: RegExp[] = [
   /\bdd\s+if=/i,
   /\b(shred|wipefs)\b/i,
   /\b(curl|wget)\s+[^\s|]+\s*\|\s*(ba)?sh\b/i,
-  /\|\s*(ba)?sh\s*$/i,
+  /\|\s*(ba)?sh\s*$/im,
   /\bchmod\s+(-[^\s]+\s+)*777\s+\//,
   /\buserdel\b/i,
   /\bgroupdel\b/i,
@@ -37,7 +66,11 @@ const SSH_BLOCKED_PATTERNS: RegExp[] = [
   /\biptables\s+-F\b/i,
   /\bufw\s+disable\b/i,
   /\bnc\s+-[^\s]*e\s+\/bin\/(ba)?sh\b/i,
-  /\bpython\s+-c\s+.*socket/i,
+  /\bpython3?\s+-c\s+.*\b(os\.system|subprocess|socket)\b/i,
+  /\bfind\s+\/[^\s]*\s+-delete\b/i,
+  /\b:\(\)\s*\{\s*:\|:&\s*\}\;\:/,
+  /\bwget\s+[^\s]+\s+-O\s-\s*\|\s*(ba)?sh\b/i,
+  /[\n\r].*(curl|wget|bash|sh)\s/i,
 ];
 
 const SSH_BLOCKED_FILE_PATTERNS: RegExp[] = [
@@ -55,6 +88,10 @@ const SSH_SENSITIVE_FILE_PATTERNS: RegExp[] = [
   /^\/root\/\.(env|aws|config)/i,
   /^\/etc\/ssl\/private\//i,
   /^\/var\/lib\/docker\/secrets\//i,
+  /\/\.env$/i,
+  /^\/proc\/[^/]+\/(environ|cmdline)$/i,
+  /^\/proc\/self\//i,
+  /^\/run\/secrets\//i,
 ];
 
 export function isGlobalReadOnly(): boolean {
@@ -64,6 +101,41 @@ export function isGlobalReadOnly(): boolean {
 export function isConfirmRequired(inventoryDefaults?: Inventory["defaults"]): boolean {
   if (optionalEnv("SYSADMIN_REQUIRE_CONFIRM") === "false") return false;
   if (inventoryDefaults?.requireConfirm === false) return false;
+  return true;
+}
+
+export function isSshAllowlistEnforced(
+  host: SshHost | undefined,
+  inventoryDefaults?: Inventory["defaults"],
+): boolean {
+  if (host?.sshAllowlistMode === false) return false;
+  if (host?.sshAllowlistMode === true) return true;
+  if (inventoryDefaults?.sshAllowlistMode === false) return false;
+  if (inventoryDefaults?.sshAllowlistMode === true) return true;
+  return isProductionMode();
+}
+
+export function getSshAllowlistPatterns(
+  host: SshHost | undefined,
+  inventoryDefaults?: Inventory["defaults"],
+): RegExp[] {
+  const custom = [
+    ...(inventoryDefaults?.allowedCommandPatterns ?? []),
+    ...(host?.allowedCommandPatterns ?? []),
+  ];
+
+  const patterns = [...DEFAULT_SSH_ALLOWLIST];
+  for (const entry of custom) {
+    patterns.push(new RegExp(entry, "i"));
+  }
+  return patterns;
+}
+
+export function hostAllowsTool(host: Host, toolName: string): boolean {
+  if (host.readOnly && TOOL_CATEGORIES[toolName] !== "read") return false;
+  if (host.allowedTools && host.allowedTools.length > 0 && !host.allowedTools.includes(toolName)) {
+    return false;
+  }
   return true;
 }
 
@@ -78,13 +150,12 @@ export function assertToolAllowed(
     );
   }
 
-  if (host?.readOnly && TOOL_CATEGORIES[toolName] !== "read") {
-    throw new SysadminError(`Tool '${toolName}' blocked: host '${host.id}' is readOnly.`);
-  }
-
-  if (host?.allowedTools && host.allowedTools.length > 0 && !host.allowedTools.includes(toolName)) {
+  if (host && !hostAllowsTool(host, toolName)) {
+    if (host.readOnly) {
+      throw new SysadminError(`Tool '${toolName}' blocked: host '${host.id}' is readOnly.`);
+    }
     throw new SysadminError(
-      `Tool '${toolName}' not in allowedTools for host '${host.id}': [${host.allowedTools.join(", ")}]`,
+      `Tool '${toolName}' not in allowedTools for host '${host.id}': [${host.allowedTools!.join(", ")}]`,
     );
   }
 
@@ -93,8 +164,20 @@ export function assertToolAllowed(
   }
 }
 
+export function assertConfirmToken(confirmToken?: string): void {
+  const expected = optionalEnv("SYSADMIN_CONFIRM_TOKEN");
+  if (!expected) return;
+
+  if (!confirmToken || confirmToken !== expected) {
+    throw new SysadminError(
+      "Invalid or missing confirmToken. Must match SYSADMIN_CONFIRM_TOKEN configured in MCP env (human gate).",
+    );
+  }
+}
+
 export function assertConfirmed(
   confirm: boolean | undefined,
+  confirmToken: string | undefined,
   toolName: string,
   summary: string,
   inventoryDefaults?: Inventory["defaults"],
@@ -109,41 +192,99 @@ export function assertConfirmed(
       `Confirmación requerida para '${toolName}'. Reintenta con confirm=true. Operación: ${summary}`,
     );
   }
+
+  if (needsConfirm) {
+    assertConfirmToken(confirmToken);
+  }
 }
 
 export function assertVmPowerAllowed(action: string): void {
-  if (DESTRUCTIVE_VM_ACTIONS.has(action) && isGlobalReadOnly()) {
+  if (isGlobalReadOnly()) {
     throw new SysadminError(`vm-power action '${action}' blocked in read-only mode.`);
   }
 }
 
-export function assertSshCommandAllowed(command: string): void {
+export function assertSshCommandAllowed(
+  command: string,
+  host?: SshHost,
+  inventoryDefaults?: Inventory["defaults"],
+): void {
   const normalized = command.trim();
   if (!normalized) {
     throw new SysadminError("SSH command cannot be empty.");
   }
 
+  if (/[\n\r]/.test(normalized)) {
+    throw new SysadminError("Multi-line SSH commands are not allowed.");
+  }
+
   for (const pattern of SSH_BLOCKED_PATTERNS) {
     if (pattern.test(normalized)) {
-      throw new SysadminError(`SSH command blocked by security policy (matched: ${pattern.source}).`);
+      throw new SysadminError(`SSH command blocked by security policy.`);
+    }
+  }
+
+  if (isSshAllowlistEnforced(host, inventoryDefaults)) {
+    const allowlist = getSshAllowlistPatterns(host, inventoryDefaults);
+    const allowed = allowlist.some((pattern) => pattern.test(normalized));
+    if (!allowed) {
+      throw new SysadminError(
+        "SSH command not in allowlist. Add allowedCommandPatterns to host/inventory or disable sshAllowlistMode for dev.",
+      );
     }
   }
 }
 
+export function normalizePathForPolicy(filePath: string): string {
+  let normalized = filePath.trim();
+  if (normalized.startsWith("~/")) {
+    normalized = `/home/PLACEHOLDER${normalized.slice(1)}`;
+  }
+  normalized = normalized.replace(/\/+/g, "/");
+  return normalized;
+}
+
 export function assertSshPathAllowed(filePath: string, confirm?: boolean): void {
-  const normalized = filePath.trim();
+  const normalized = normalizePathForPolicy(filePath);
 
   for (const pattern of SSH_BLOCKED_FILE_PATTERNS) {
     if (pattern.test(normalized)) {
-      throw new SysadminError(`Reading '${normalized}' blocked: path is never allowed.`);
+      throw new SysadminError(`Reading '${filePath}' blocked: path is never allowed.`);
     }
   }
 
   for (const pattern of SSH_SENSITIVE_FILE_PATTERNS) {
     if (pattern.test(normalized) && confirm !== true) {
       throw new SysadminError(
-        `Path '${normalized}' is sensitive. Reintenta ssh-read-file con confirm=true.`,
+        `Path '${filePath}' is sensitive. Reintenta ssh-read-file con confirm=true and confirmToken.`,
       );
     }
   }
+}
+
+export function parseHostKeyFingerprint(fingerprint: string): {
+  algorithm: "sha256" | "md5";
+  value: string;
+} {
+  const trimmed = fingerprint.trim();
+  if (trimmed.startsWith("SHA256:") || trimmed.startsWith("sha256:")) {
+    return { algorithm: "sha256", value: trimmed.split(":")[1]! };
+  }
+  if (trimmed.includes(":")) {
+    return { algorithm: "md5", value: trimmed.replace(/:/g, "").toLowerCase() };
+  }
+  return { algorithm: "sha256", value: trimmed };
+}
+
+export function fingerprintMatchesKey(
+  remoteKey: Buffer,
+  expectedFingerprint: string,
+): boolean {
+  const parsed = parseHostKeyFingerprint(expectedFingerprint);
+  if (parsed.algorithm === "md5") {
+    const md5 = createHash("md5").update(remoteKey).digest("hex");
+    return md5 === parsed.value.toLowerCase();
+  }
+  const sha256 = createHash("sha256").update(remoteKey).digest("base64");
+  return sha256 === parsed.value || sha256.replace(/=+$/, "") === parsed.value.replace(/=+$/, "");
 }

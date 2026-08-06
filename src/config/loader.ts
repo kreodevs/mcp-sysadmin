@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { expandEnvDeep, getEnv, optionalEnv, SysadminError } from "../api/utils.js";
+import { expandEnvDeep, optionalEnv, SysadminError } from "../api/utils.js";
 import { Host, HostSchema, Inventory, InventorySchema } from "./schema.js";
+import { validateProductionConfig } from "../security/startup.js";
 
 export class InventoryStore {
   private inventory: Inventory;
@@ -30,6 +31,7 @@ export class InventoryStore {
 
     const expanded = expandEnvDeep(raw);
     const inventory = InventorySchema.parse(expanded);
+    validateProductionConfig(inventory);
     return new InventoryStore(inventory);
   }
 

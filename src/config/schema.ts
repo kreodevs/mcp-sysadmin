@@ -20,6 +20,18 @@ export const SshHostSchema = BaseHostSchema.extend({
   privateKeyPath: z.string().optional(),
   password: z.string().optional(),
   passphrase: z.string().optional(),
+  hostKeyFingerprint: z
+    .string()
+    .optional()
+    .describe("Fingerprint SSH del host (SHA256:... o MD5 con colons) para anti-MITM"),
+  sshAllowlistMode: z
+    .boolean()
+    .optional()
+    .describe("Si true, solo comandos que coincidan con allowedCommandPatterns"),
+  allowedCommandPatterns: z
+    .array(z.string())
+    .optional()
+    .describe("Regex adicionales permitidas para ssh-exec en este host"),
 });
 
 export const ProxmoxHostSchema = BaseHostSchema.extend({
@@ -50,6 +62,8 @@ export const InventorySchema = z.object({
     .object({
       readOnly: z.boolean().optional(),
       requireConfirm: z.boolean().optional(),
+      sshAllowlistMode: z.boolean().optional(),
+      allowedCommandPatterns: z.array(z.string()).optional(),
     })
     .optional(),
   hosts: z.array(HostSchema).min(1),
@@ -110,6 +124,10 @@ export const ConfirmSchema = z.object({
     .boolean()
     .optional()
     .describe("Debe ser true para confirmar operaciones destructivas o lectura de paths sensibles"),
+  confirmToken: z
+    .string()
+    .optional()
+    .describe("Token humano; debe coincidir con SYSADMIN_CONFIRM_TOKEN en env MCP"),
 });
 
 export const VmPowerSchema = VmRefSchema.merge(ConfirmSchema).extend({

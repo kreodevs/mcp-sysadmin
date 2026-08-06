@@ -15,8 +15,8 @@ export function registerSshTools(server: McpServer, context: ToolContext) {
     {
       title: "SSH Execute Command",
       description:
-        "Ejecuta un comando en un servidor físico o VPS accesible por SSH del inventario. " +
-        "Requiere confirm=true. Comandos destructivos conocidos están bloqueados por policy.",
+        "Ejecuta un comando en un servidor SSH del inventario. Requiere confirm=true y confirmToken " +
+        "(SYSADMIN_CONFIRM_TOKEN). En producción solo comandos en allowlist.",
       inputSchema: SshExecSchema,
     },
     async (input) => {
@@ -31,11 +31,12 @@ export function registerSshTools(server: McpServer, context: ToolContext) {
 
         assertConfirmed(
           input.confirm,
+          input.confirmToken,
           "ssh-exec",
-          `command on ${input.hostId}: ${input.command.slice(0, 120)}`,
+          `command on ${input.hostId}`,
           context.defaults,
         );
-        assertSshCommandAllowed(input.command);
+        assertSshCommandAllowed(input.command, host, context.defaults);
 
         const result = await context.registry.ssh().exec(
           host,
@@ -46,7 +47,6 @@ export function registerSshTools(server: McpServer, context: ToolContext) {
 
         return jsonContent({
           hostId: input.hostId,
-          command: input.command,
           exitCode: result.exitCode,
           signal: result.signal,
           stdout: result.stdout,
@@ -63,8 +63,8 @@ export function registerSshTools(server: McpServer, context: ToolContext) {
     {
       title: "SSH Read File",
       description:
-        "Lee un archivo remoto vía SSH (limitado por maxBytes, default 256KB). " +
-        "Requiere confirm=true. Paths sensibles requieren confirm=true explícito.",
+        "Lee un archivo remoto vía SSH. Resuelve symlinks con readlink -f. " +
+        "Requiere confirm=true y confirmToken. Paths sensibles bloqueados o requieren confirmación.",
       inputSchema: SshReadFileSchema,
     },
     async (input) => {
@@ -79,21 +79,21 @@ export function registerSshTools(server: McpServer, context: ToolContext) {
 
         assertConfirmed(
           input.confirm,
+          input.confirmToken,
           "ssh-read-file",
-          `read ${input.path} on ${input.hostId}`,
+          `read on ${input.hostId}`,
           context.defaults,
         );
-        assertSshPathAllowed(input.path, input.confirm);
 
-        const content = await context.registry.ssh().readFile(
-          host,
-          input.path,
-          input.maxBytes,
-        );
+        const ssh = context.registry.ssh();
+        const resolved = await ssh.resolveRemotePath(host, input.path);
+        assertSshPathAllowed(resolved, input.confirm);
+
+        const content = await ssh.readResolvedFile(host, resolved, input.maxBytes);
 
         return jsonContent({
           hostId: input.hostId,
-          path: input.path,
+          path: resolved,
           bytes: content.length,
           content,
         });
@@ -103,3 +103,4 @@ export function registerSshTools(server: McpServer, context: ToolContext) {
     },
   );
 }
+

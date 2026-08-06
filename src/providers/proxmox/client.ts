@@ -74,7 +74,6 @@ export class ProxmoxClient {
       memoryUsedMb: firstNumber(record, ["memory", "used"]) ?? firstNumber(record, ["mem"]),
       memoryTotalMb: firstNumber(record, ["memory", "total"]) ?? firstNumber(record, ["maxmem"]),
       uptime: firstNumber(record, ["uptime"]),
-      raw: record,
     };
   }
 

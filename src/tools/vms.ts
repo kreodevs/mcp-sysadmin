@@ -7,6 +7,7 @@ import {
   assertConfirmed,
   assertVmPowerAllowed,
 } from "../security/policy.js";
+import { isProductionMode } from "../security/startup.js";
 import { sanitizeProxmoxVmPayload } from "../security/sanitize.js";
 import { ToolContext } from "./context.js";
 
@@ -114,9 +115,11 @@ export function registerVmTools(server: McpServer, context: ToolContext) {
         assertVmPowerAllowed(input.action);
 
         const destructive = ["stop", "shutdown", "reboot", "reset"].includes(input.action);
-        if (destructive) {
+        const needsConfirm = destructive || isProductionMode();
+        if (needsConfirm) {
           assertConfirmed(
             input.confirm,
+            input.confirmToken,
             "vm-power",
             `${input.action} vm ${input.vmId} on ${input.hostId}`,
             context.defaults,
@@ -186,6 +189,7 @@ export function registerVmTools(server: McpServer, context: ToolContext) {
 
         assertConfirmed(
           input.confirm,
+          input.confirmToken,
           "create-vm-snapshot",
           `snapshot '${input.snapname}' on vm ${input.vmId}`,
           context.defaults,

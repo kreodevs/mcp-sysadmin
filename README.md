@@ -73,8 +73,11 @@ cp .env.example .env
 
 ```env
 SYSADMIN_INVENTORY_PATH=./config/inventory.json
+SYSADMIN_PRODUCTION_MODE=true
+SYSADMIN_CONFIRM_TOKEN=un-secreto-largo-que-el-llm-no-conoce
 SYSADMIN_READ_ONLY=false
 SYSADMIN_REQUIRE_CONFIRM=true
+SYSADMIN_RATE_LIMIT_MAX=30
 SYSADMIN_HTTP_TIMEOUT_MS=30000
 SYSADMIN_SSH_TIMEOUT_MS=30000
 ```
@@ -172,6 +175,8 @@ Añade en la configuración MCP de Cursor:
       "args": ["/ruta/absoluta/mcp-sysadmin/dist/index.js"],
       "env": {
         "SYSADMIN_INVENTORY_PATH": "/ruta/absoluta/mcp-sysadmin/config/inventory.json",
+        "SYSADMIN_PRODUCTION_MODE": "true",
+        "SYSADMIN_CONFIRM_TOKEN": "tu-secreto-humano-no-compartir-con-el-modelo",
         "SYSADMIN_READ_ONLY": "false",
         "SYSADMIN_REQUIRE_CONFIRM": "true",
         "PROXMOX_HOMELAB_TOKEN": "tu-token",
@@ -191,45 +196,89 @@ npm run dev
 
 ## Seguridad
 
-### Controles implementados
+### Modo producción
 
-| Control | Descripción |
-|---------|-------------|
-| **Modo read-only** | `SYSADMIN_READ_ONLY=true` bloquea `ssh-exec`, snapshots y acciones VM destructivas |
-| **Confirmación** | Tools destructivas requieren `confirm: true` (desactivable con `SYSADMIN_REQUIRE_CONFIRM=false`) |
-| **ACL por host** | `readOnly` y `allowedTools` en inventario limitan alcance por servidor |
-| **Blocklist SSH** | Comandos peligrosos (`rm -rf`, `mkfs`, `curl\|bash`, etc.) rechazados automáticamente |
-| **Paths sensibles** | `/etc/shadow` bloqueado siempre; claves SSH y `.env` requieren `confirm=true` |
-| **TLS Proxmox** | `verifySsl` default `true`; usa `false` solo en lab |
-| **Credenciales Virtualizor** | Enviadas por POST body, no en query string |
-| **Redacción** | Secretos, configs VM y respuestas API filtradas antes de devolver al LLM |
-| **Claves SSH** | Solo paths bajo `~/.ssh/`; sin path traversal |
-| **Auditoría** | Cada invocación/bloqueo se registra en stderr como JSON (`[mcp-sysadmin:audit]`) |
+Activa siempre en prod:
 
-### Tools que requieren `confirm: true`
+```env
+SYSADMIN_PRODUCTION_MODE=true
+SYSADMIN_CONFIRM_TOKEN=<secreto-largo-aleatorio>
+```
 
-- `ssh-exec` — siempre
-- `ssh-read-file` — siempre (+ paths sensibles adicionales)
-- `vm-power` — para `stop`, `shutdown`, `reboot`, `reset`
-- `create-vm-snapshot` — siempre
+Con esto:
+- SSH exige `hostKeyFingerprint` (anti-MITM)
+- SSH usa **allowlist** de comandos (no solo blocklist)
+- Prohibido `password` en inventario SSH
+- `vm-power` requiere confirmación incluso para `start`
+- Warnings en startup si falta token o hay `verifySsl: false`
 
-### Buenas prácticas
+### Gate humano: `confirmToken`
 
-- No commitees `config/inventory.json` ni `.env` con credenciales reales.
-- Crea tokens Proxmox con permisos mínimos (no uses `root@pam` en producción si puedes evitarlo).
-- Usa `${VAR}` en inventario para credenciales; pásalas via env de Cursor.
-- Empieza con `SYSADMIN_READ_ONLY=true` hasta validar el inventario.
-- Revisa los logs de auditoría en stderr del proceso MCP.
-
-### Ejemplo: operación destructiva
+El LLM puede poner `confirm: true` por prompt injection, pero **no conoce** `SYSADMIN_CONFIRM_TOKEN` (solo está en env del MCP, no en el chat):
 
 ```json
 {
   "hostId": "bare-metal-01",
-  "command": "systemctl restart nginx",
-  "confirm": true
+  "command": "systemctl status nginx",
+  "confirm": true,
+  "confirmToken": "tu-secreto-humano-no-compartir-con-el-modelo"
 }
 ```
+
+Tú proporcionas el token cuando apruebas la operación.
+
+### Obtener fingerprint SSH
+
+```bash
+ssh-keyscan -H 10.0.0.5 | ssh-keygen -lf -
+# Copia la línea SHA256:... al inventario como hostKeyFingerprint
+```
+
+### Controles implementados
+
+| Control | Descripción |
+|---------|-------------|
+| **confirmToken** | Secreto humano en env MCP; el modelo no lo tiene por defecto |
+| **Modo producción** | Allowlist SSH, host key pinning, sin passwords SSH |
+| **Modo read-only** | `SYSADMIN_READ_ONLY=true` bloquea tools de escritura |
+| **ACL por host** | `readOnly`, `allowedTools`, `allowedCommandPatterns` |
+| **Allowlist SSH** | Solo comandos que coinciden con patrones seguros (+ custom) |
+| **Blocklist SSH** | Capa extra: `rm -rf`, pipes a shell, multiline, etc. |
+| **Paths remotos** | `readlink -f` antes de leer; bloqueo de shadow/symlink bypass |
+| **Rate limit** | 30 req/tool/host/min (configurable) |
+| **TLS Proxmox** | `verifySsl` default `true` |
+| **Redacción** | Secretos, configs VM, errores API filtrados |
+| **Auditoría** | JSON en stderr: `[mcp-sysadmin:audit]` |
+
+### Allowlist SSH por defecto
+
+Incluye: `systemctl status`, `journalctl`, `docker ps/logs`, `kubectl get`, `ls`, `df`, `free`, `cat`, `head`, `tail`, etc.
+
+Añade patrones custom en inventario:
+
+```json
+{
+  "allowedCommandPatterns": ["^systemctl restart nginx$"]
+}
+```
+
+### Tools que requieren `confirm` + `confirmToken`
+
+- `ssh-exec` — siempre
+- `ssh-read-file` — siempre
+- `vm-power` — todas las acciones en producción; stop/shutdown/reboot/reset siempre
+- `create-vm-snapshot` — siempre
+
+### Checklist pre-producción
+
+- [ ] `SYSADMIN_PRODUCTION_MODE=true`
+- [ ] `SYSADMIN_CONFIRM_TOKEN` generado (`openssl rand -hex 32`)
+- [ ] Fingerprint SSH en cada host
+- [ ] Tokens Proxmox con permisos mínimos
+- [ ] `verifySsl: true` en Proxmox
+- [ ] `allowedTools` por host según necesidad
+- [ ] Inventario sin passwords en texto plano
+- [ ] Probar una operación destructiva con token manual
 
 ## Extensión
 

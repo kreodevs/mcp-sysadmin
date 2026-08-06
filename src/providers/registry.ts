@@ -1,5 +1,6 @@
 import { InventoryStore } from "../config/loader.js";
 import { Host, NodeSummary, ProxmoxHost, Provider, SshHost, VirtualizorHost, VmPowerAction, VmSummary, VmType } from "../config/schema.js";
+import { hostAllowsTool } from "../security/policy.js";
 import { ProxmoxClient } from "./proxmox/client.js";
 import { SshClient } from "./ssh/client.js";
 import { VirtualizorClient } from "./virtualizor/client.js";
@@ -46,8 +47,8 @@ export class ProviderRegistry {
     return this.inventory.requireProvider(hostId, "ssh");
   }
 
-  async listAllNodes(hostId?: string): Promise<NodeSummary[]> {
-    const hosts = hostId ? [this.getHost(hostId)] : this.listHosts();
+  async listAllNodes(hostId?: string, toolName = "list-nodes"): Promise<NodeSummary[]> {
+    const hosts = hostId ? [this.getHost(hostId)] : this.listHosts().filter((h) => hostAllowsTool(h, toolName));
     const results: NodeSummary[] = [];
 
     for (const host of hosts) {
@@ -70,8 +71,8 @@ export class ProviderRegistry {
     return results;
   }
 
-  async listAllVms(hostId?: string, node?: string): Promise<VmSummary[]> {
-    const hosts = hostId ? [this.getHost(hostId)] : this.listHosts();
+  async listAllVms(hostId?: string, node?: string, toolName = "list-vms"): Promise<VmSummary[]> {
+    const hosts = hostId ? [this.getHost(hostId)] : this.listHosts().filter((h) => hostAllowsTool(h, toolName));
     const results: VmSummary[] = [];
 
     for (const host of hosts) {
