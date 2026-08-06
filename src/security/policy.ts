@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { optionalEnv, SysadminError } from "../api/utils.js";
 import { Host, Inventory, SshHost } from "../config/schema.js";
-import { isProductionMode } from "./startup.js";
+import { isProductionMode, compileValidatedCommandPattern, tokensEqual } from "./startup.js";
 
 export type ToolCategory = "read" | "write" | "destructive";
 
@@ -36,12 +36,6 @@ export const DEFAULT_SSH_ALLOWLIST: RegExp[] = [
   /^free\b/i,
   /^uptime\b/i,
   /^hostname\b/i,
-  /^cat\s+/i,
-  /^head\s+-c\s+\d+\s+/i,
-  /^tail\s+-n\s+\d+\s+/i,
-  /^grep\s+-/i,
-  /^wc\s+/i,
-  /^stat\s+/i,
   /^ss\s+/i,
   /^netstat\b/i,
   /^ip\s+(addr|route|link)\b/i,
@@ -126,7 +120,7 @@ export function getSshAllowlistPatterns(
 
   const patterns = [...DEFAULT_SSH_ALLOWLIST];
   for (const entry of custom) {
-    patterns.push(new RegExp(entry, "i"));
+    patterns.push(compileValidatedCommandPattern(entry, "allowedCommandPatterns"));
   }
   return patterns;
 }
@@ -168,7 +162,7 @@ export function assertConfirmToken(confirmToken?: string): void {
   const expected = optionalEnv("SYSADMIN_CONFIRM_TOKEN");
   if (!expected) return;
 
-  if (!confirmToken || confirmToken !== expected) {
+  if (!confirmToken || !tokensEqual(expected, confirmToken)) {
     throw new SysadminError(
       "Invalid or missing confirmToken. Must match SYSADMIN_CONFIRM_TOKEN configured in MCP env (human gate).",
     );
@@ -232,6 +226,40 @@ export function assertSshCommandAllowed(
         "SSH command not in allowlist. Add allowedCommandPatterns to host/inventory or disable sshAllowlistMode for dev.",
       );
     }
+  }
+}
+
+/** Safe working directories for ssh-exec cwd. File reads must use ssh-read-file. */
+const DEFAULT_CWD_ALLOWLIST: RegExp[] = [
+  /^\/tmp(\/|$)/,
+  /^\/var\/log(\/|$)/,
+  /^\/var\/www(\/|$)/,
+  /^\/home\/[^/]+(\/|$)/,
+  /^\/opt\/[^/]+(\/|$)/,
+];
+
+export function assertSshCwdAllowed(cwd?: string): void {
+  if (!cwd) return;
+
+  const normalized = cwd.trim();
+  if (!normalized.startsWith("/")) {
+    throw new SysadminError("cwd must be an absolute path.");
+  }
+  if (normalized.includes("..")) {
+    throw new SysadminError("Path traversal (..) is not allowed in cwd.");
+  }
+
+  const blockedCwdPrefixes = ["/etc", "/root", "/proc", "/sys", "/dev", "/.ssh", "/run/secrets"];
+  for (const prefix of blockedCwdPrefixes) {
+    if (normalized === prefix || normalized.startsWith(`${prefix}/`)) {
+      throw new SysadminError(`cwd '${cwd}' is not allowed. Use ssh-read-file for sensitive paths.`);
+    }
+  }
+
+  if (!DEFAULT_CWD_ALLOWLIST.some((pattern) => pattern.test(normalized))) {
+    throw new SysadminError(
+      `cwd '${cwd}' not in allowed working directories (/tmp, /var/log, /var/www, /home/*, /opt/*).`,
+    );
   }
 }
 

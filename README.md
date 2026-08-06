@@ -206,11 +206,12 @@ SYSADMIN_CONFIRM_TOKEN=<secreto-largo-aleatorio>
 ```
 
 Con esto:
-- SSH exige `hostKeyFingerprint` (anti-MITM)
-- SSH usa **allowlist** de comandos (no solo blocklist)
+- SSH exige `hostKeyFingerprint` (anti-MITM) — **falla al arrancar** si falta
+- **`SYSADMIN_CONFIRM_TOKEN` obligatorio** — falla al arrancar si falta
+- SSH usa **allowlist** estricta (sin `cat`/`grep`; lecturas solo vía `ssh-read-file`)
 - Prohibido `password` en inventario SSH
 - `vm-power` requiere confirmación incluso para `start`
-- Warnings en startup si falta token o hay `verifySsl: false`
+- Regex custom validadas (sin `.*` ni patrones demasiado amplios)
 
 ### Gate humano: `confirmToken`
 
@@ -242,7 +243,10 @@ ssh-keyscan -H 10.0.0.5 | ssh-keygen -lf -
 | **Modo producción** | Allowlist SSH, host key pinning, sin passwords SSH |
 | **Modo read-only** | `SYSADMIN_READ_ONLY=true` bloquea tools de escritura |
 | **ACL por host** | `readOnly`, `allowedTools`, `allowedCommandPatterns` |
-| **Allowlist SSH** | Solo comandos que coinciden con patrones seguros (+ custom) |
+| **Allowlist SSH** | Solo diagnóstico (`systemctl status`, `journalctl`, `docker ps`, etc.) — **sin lectura de archivos** |
+| **Lectura de archivos** | Exclusivamente vía `ssh-read-file` (paths + symlinks + confirmToken) |
+| **cwd restringido** | Solo `/tmp`, `/var/log`, `/var/www`, `/home/*`, `/opt/*` en `ssh-exec` |
+| **Regex inventario** | Patrones custom validados; prohibido `.*` y regex demasiado amplias |
 | **Blocklist SSH** | Capa extra: `rm -rf`, pipes a shell, multiline, etc. |
 | **Paths remotos** | `readlink -f` antes de leer; bloqueo de shadow/symlink bypass |
 | **Rate limit** | 30 req/tool/host/min (configurable) |
@@ -252,9 +256,11 @@ ssh-keyscan -H 10.0.0.5 | ssh-keygen -lf -
 
 ### Allowlist SSH por defecto
 
-Incluye: `systemctl status`, `journalctl`, `docker ps/logs`, `kubectl get`, `ls`, `df`, `free`, `cat`, `head`, `tail`, etc.
+Incluye solo **diagnóstico operativo**: `systemctl status`, `journalctl`, `docker ps/logs`, `kubectl get`, `ls`, `df`, `free`, `nginx -t`, etc.
 
-Añade patrones custom en inventario:
+**No incluye** `cat`, `grep`, `head`, `tail` — usa `ssh-read-file` para leer archivos.
+
+Añade patrones **específicos** en inventario (sin `.*`):
 
 ```json
 {

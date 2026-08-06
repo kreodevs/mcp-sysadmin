@@ -5,6 +5,7 @@ import { guardToolAccess } from "../security/guard.js";
 import {
   assertConfirmed,
   assertSshCommandAllowed,
+  assertSshCwdAllowed,
   assertSshPathAllowed,
 } from "../security/policy.js";
 import { ToolContext } from "./context.js";
@@ -37,6 +38,7 @@ export function registerSshTools(server: McpServer, context: ToolContext) {
           context.defaults,
         );
         assertSshCommandAllowed(input.command, host, context.defaults);
+        assertSshCwdAllowed(input.cwd);
 
         const result = await context.registry.ssh().exec(
           host,

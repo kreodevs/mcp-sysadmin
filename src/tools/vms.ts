@@ -74,7 +74,18 @@ export function registerVmTools(server: McpServer, context: ToolContext) {
           const node = client.resolveNode(input.node);
           const vm = await client.getVm(node, input.vmId, input.vmType ?? "qemu");
           return jsonContent({
-            ...vm,
+            hostId: vm.hostId,
+            hostName: vm.hostName,
+            provider: vm.provider,
+            vmId: vm.vmId,
+            name: vm.name,
+            status: vm.status,
+            type: vm.type,
+            node: vm.node,
+            cpu: vm.cpu,
+            memoryMb: vm.memoryMb,
+            diskGb: vm.diskGb,
+            tags: vm.tags,
             config: sanitizeProxmoxVmPayload((vm.config ?? {}) as Record<string, unknown>),
             statusRaw: sanitizeProxmoxVmPayload((vm.statusRaw ?? {}) as Record<string, unknown>),
           });
@@ -98,7 +109,7 @@ export function registerVmTools(server: McpServer, context: ToolContext) {
       title: "VM Power Action",
       description:
         "Acciones de energía en VMs: start, stop, shutdown, reboot, reset, suspend, resume. " +
-        "Requiere confirm=true para acciones destructivas (stop/shutdown/reboot/reset).",
+        "Requiere confirm=true y confirmToken. En producción, todas las acciones requieren confirmación.",
       inputSchema: VmPowerSchema,
     },
     async (input) => {
