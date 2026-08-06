@@ -26,27 +26,34 @@ flowchart LR
 | `proxmox` | Clusters / nodos Proxmox VE | API Token (`PVEAPIToken`) |
 | `virtualizor` | Panel Virtualizor (Admin API) | `apiKey` + `apiPass` |
 
-## Tools incluidos
+## Tools incluidos (28)
 
 ### Inventario
-- `list-hosts` — Lista hosts del inventario (filtro por provider o tag)
-- `get-host` — Detalle de un host (secretos redactados)
+- `list-hosts`, `get-host`
 
 ### Nodos / métricas
-- `list-nodes` — Nodos Proxmox, servidores Virtualizor, o hosts SSH
-- `get-node-status` — CPU, memoria, uptime (API o SSH)
+- `list-nodes`, `get-node-status`, `health-check`
 
 ### Máquinas virtuales
-- `list-vms` — VMs en Proxmox + VPS en Virtualizor
-- `get-vm` — Detalle de una VM/VPS
-- `vm-power` — start / stop / shutdown / reboot / reset / suspend / resume
-- `list-vm-snapshots` — Snapshots Proxmox
-- `create-vm-snapshot` — Crear snapshot Proxmox
-- `list-proxmox-tasks` — Tareas recientes en Proxmox
+- `list-vms`, `list-containers`, `get-vm`, `vm-power`
+- `list-vm-snapshots`, `create-vm-snapshot`
+- `list-proxmox-tasks`, `get-proxmox-task`
+- `list-storage-usage`, `list-backups`, `create-backup`
 
-### SSH (servidores físicos y genéricos)
-- `ssh-exec` — Ejecutar comando remoto
-- `ssh-read-file` — Leer archivo remoto
+### Red
+- `list-network`
+
+### SSH — operaciones controladas
+- `ssh-exec`, `ssh-read-file` (destructivas / confirmToken)
+
+### SSH — diagnóstico read-only
+- `ssh-tail-log` — journalctl o tail en `/var/log/`
+- `list-firewall-rules` — UFW / nftables / iptables
+- `list-systemd-units` — failed / running / all
+- `cert-status` — certbot / fechas SSL
+- `dns-lookup`, `check-endpoint`
+- `list-cron`, `list-timers`
+- `docker-compose-ps`
 
 ## Instalación
 
@@ -228,6 +235,15 @@ El LLM puede poner `confirm: true` por prompt injection, pero **no conoce** `SYS
 
 Tú proporcionas el token cuando apruebas la operación.
 
+### Token de un solo uso (recomendado)
+
+```bash
+./scripts/mcp-approve.sh
+# Válido 5 minutos; úsalo como confirmToken en la tool call
+```
+
+Alternativa: el token fijo `SYSADMIN_CONFIRM_TOKEN` en env MCP.
+
 ### Obtener fingerprint SSH
 
 ```bash
@@ -285,6 +301,10 @@ Añade patrones **específicos** en inventario (sin `.*`):
 - [ ] `allowedTools` por host según necesidad
 - [ ] Inventario sin passwords en texto plano
 - [ ] Probar una operación destructiva con token manual
+
+## CI
+
+GitHub Actions ejecuta `typecheck` + `build` en cada push/PR a `main`.
 
 ## Extensión
 

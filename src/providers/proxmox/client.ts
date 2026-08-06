@@ -164,7 +164,95 @@ export class ProxmoxClient {
       ? `/nodes/${encodeURIComponent(node)}/tasks?limit=${limit}`
       : `/cluster/tasks?limit=${limit}`;
     const tasks = await this.request<JsonRecord[]>("GET", path);
-    return toArray<JsonRecord>(tasks).map((task) => ({
+    return toArray<JsonRecord>(tasks).map((task) => this.mapTask(task));
+  }
+
+  async getTaskStatus(node: string, upid: string) {
+    const status = await this.request<JsonRecord>(
+      "GET",
+      `/nodes/${encodeURIComponent(node)}/tasks/${encodeURIComponent(upid)}/status`,
+    );
+    return {
+      hostId: this.host.id,
+      node,
+      upid,
+      status: firstString(status as JsonRecord, ["status"], "unknown"),
+      exitstatus: firstString(status as JsonRecord, ["exitstatus"]),
+      type: firstString(status as JsonRecord, ["type"]),
+      user: firstString(status as JsonRecord, ["user"]),
+      starttime: firstNumber(status as JsonRecord, ["starttime"]),
+      endtime: firstNumber(status as JsonRecord, ["endtime"]),
+    };
+  }
+
+  async listStorage() {
+    const storages = toArray<JsonRecord>(await this.request("GET", "/storage"));
+    return storages.map((storage) => ({
+      hostId: this.host.id,
+      storage: firstString(storage, ["storage"]),
+      type: firstString(storage, ["type"]),
+      content: firstString(storage, ["content"]),
+      enabled: storage.disable !== 1,
+      usedBytes: firstNumber(storage, ["used"]),
+      totalBytes: firstNumber(storage, ["total"]),
+      usedPercent:
+        firstNumber(storage, ["used"]) && firstNumber(storage, ["total"])
+          ? Math.round((firstNumber(storage, ["used"])! / firstNumber(storage, ["total"])!) * 100)
+          : undefined,
+    }));
+  }
+
+  async listStorageOnNode(node: string) {
+    const storages = toArray<JsonRecord>(
+      await this.request("GET", `/nodes/${encodeURIComponent(node)}/storage`),
+    );
+    return storages.map((storage) => ({
+      hostId: this.host.id,
+      node,
+      storage: firstString(storage, ["storage"]),
+      type: firstString(storage, ["type"]),
+      active: firstNumber(storage, ["active"]),
+      usedBytes: firstNumber(storage, ["used"]),
+      totalBytes: firstNumber(storage, ["total"]),
+    }));
+  }
+
+  async listBackups(node?: string, limit = 30) {
+    const tasks = await this.listTasks(node, limit * 2);
+    return tasks.filter((task) => task.type.includes("vzdump") || task.type.includes("backup")).slice(0, limit);
+  }
+
+  async createBackup(node: string, vmId: string, storage?: string, mode: "snapshot" | "suspend" | "stop" = "snapshot", vmType: VmType = "qemu") {
+    const body: JsonRecord = { vmid: Number(vmId), mode };
+    if (storage) body.storage = storage;
+    if (vmType === "lxc") body.vmid = Number(vmId);
+
+    const upid = await this.request<string>(
+      "POST",
+      `/nodes/${encodeURIComponent(node)}/vzdump`,
+      body,
+    );
+    return { hostId: this.host.id, node, vmId, vmType, mode, storage, taskId: upid };
+  }
+
+  async listNetwork(node: string) {
+    const interfaces = toArray<JsonRecord>(
+      await this.request("GET", `/nodes/${encodeURIComponent(node)}/network`),
+    );
+    return interfaces.map((iface) => ({
+      hostId: this.host.id,
+      node,
+      iface: firstString(iface, ["iface"]),
+      type: firstString(iface, ["type"]),
+      active: firstNumber(iface, ["active"]),
+      address: firstString(iface, ["address", "cidr"]),
+      gateway: firstString(iface, ["gateway"]),
+      bridge: firstString(iface, ["bridge_ports"]),
+    }));
+  }
+
+  private mapTask(task: JsonRecord) {
+    return {
       upid: firstString(task, ["upid"]),
       type: firstString(task, ["type"]),
       status: firstString(task, ["status"]),
@@ -172,7 +260,7 @@ export class ProxmoxClient {
       user: firstString(task, ["user"]),
       starttime: firstNumber(task, ["starttime"]),
       endtime: firstNumber(task, ["endtime"]),
-    }));
+    };
   }
 
   resolveNode(explicitNode?: string): string {

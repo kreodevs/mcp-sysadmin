@@ -3,6 +3,7 @@ import { Host, NodeSummary, ProxmoxHost, Provider, SshHost, VirtualizorHost, VmP
 import { hostAllowsTool } from "../security/policy.js";
 import { ProxmoxClient } from "./proxmox/client.js";
 import { SshClient } from "./ssh/client.js";
+import { SshDiagnostics } from "./ssh/diagnostics.js";
 import { VirtualizorClient } from "./virtualizor/client.js";
 
 export class ProviderRegistry {
@@ -10,9 +11,11 @@ export class ProviderRegistry {
   private readonly proxmoxClients = new Map<string, ProxmoxClient>();
   private readonly virtualizorClients = new Map<string, VirtualizorClient>();
   private readonly sshClient = new SshClient();
+  private readonly sshDiagnostics: SshDiagnostics;
 
   constructor(inventory: InventoryStore) {
     this.inventory = inventory;
+    this.sshDiagnostics = new SshDiagnostics(this.sshClient);
   }
 
   listHosts(filter: Provider | "all" = "all"): Host[] {
@@ -101,5 +104,9 @@ export class ProviderRegistry {
 
   ssh() {
     return this.sshClient;
+  }
+
+  sshDiag() {
+    return this.sshDiagnostics;
   }
 }

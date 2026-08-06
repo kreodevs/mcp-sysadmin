@@ -53,6 +53,31 @@ export function registerVmTools(server: McpServer, context: ToolContext) {
   );
 
   server.registerTool(
+    "list-containers",
+    {
+      title: "List Containers",
+      description: "Lista solo contenedores LXC en Proxmox (alias de list-vms filtrado).",
+      inputSchema: ListVmsSchema,
+    },
+    async (input) => {
+      try {
+        const host = input.hostId ? context.registry.getHost(input.hostId) : undefined;
+        guardToolAccess({
+          toolName: "list-containers",
+          hostId: input.hostId,
+          host,
+          defaults: context.defaults,
+        });
+        let vms = await context.registry.listAllVms(input.hostId, input.node, "list-containers");
+        vms = vms.filter((vm) => vm.type === "lxc");
+        return jsonContent({ count: vms.length, containers: vms });
+      } catch (error) {
+        return toolError(error);
+      }
+    },
+  );
+
+  server.registerTool(
     "get-vm",
     {
       title: "Get VM",

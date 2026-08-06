@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { optionalEnv, SysadminError } from "../api/utils.js";
 import { Host, Inventory, SshHost } from "../config/schema.js";
-import { isProductionMode, compileValidatedCommandPattern, tokensEqual } from "./startup.js";
+import { isProductionMode, compileValidatedCommandPattern } from "./startup.js";
+import { assertConfirmToken } from "./approve.js";
 
 export type ToolCategory = "read" | "write" | "destructive";
 
@@ -11,11 +12,27 @@ export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   "list-nodes": "read",
   "get-node-status": "read",
   "list-vms": "read",
+  "list-containers": "read",
   "get-vm": "read",
   "list-vm-snapshots": "read",
   "list-proxmox-tasks": "read",
+  "get-proxmox-task": "read",
+  "list-storage-usage": "read",
+  "list-backups": "read",
+  "list-network": "read",
+  "health-check": "read",
+  "ssh-tail-log": "read",
+  "list-firewall-rules": "read",
+  "list-systemd-units": "read",
+  "cert-status": "read",
+  "dns-lookup": "read",
+  "check-endpoint": "read",
+  "list-cron": "read",
+  "list-timers": "read",
+  "docker-compose-ps": "read",
   "vm-power": "destructive",
   "create-vm-snapshot": "destructive",
+  "create-backup": "destructive",
   "ssh-exec": "destructive",
   "ssh-read-file": "write",
 };
@@ -24,7 +41,7 @@ export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
 export const DEFAULT_SSH_ALLOWLIST: RegExp[] = [
   /^systemctl\s+(status|is-active|is-enabled|is-failed|list-units|show)\b/i,
   /^journalctl\b/i,
-  /^docker\s+(ps|logs|inspect|stats|info|version)\b/i,
+  /^docker\s+(ps|logs|inspect|stats|info|version|compose\s+ps)\b/i,
   /^kubectl\s+get\b/i,
   /^nginx\s+-t\b/i,
   /^apachectl\s+-t\b/i,
@@ -155,17 +172,6 @@ export function assertToolAllowed(
 
   if (inventoryDefaults?.readOnly && TOOL_CATEGORIES[toolName] !== "read" && !host) {
     throw new SysadminError(`Tool '${toolName}' blocked: inventory defaults.readOnly=true.`);
-  }
-}
-
-export function assertConfirmToken(confirmToken?: string): void {
-  const expected = optionalEnv("SYSADMIN_CONFIRM_TOKEN");
-  if (!expected) return;
-
-  if (!confirmToken || !tokensEqual(expected, confirmToken)) {
-    throw new SysadminError(
-      "Invalid or missing confirmToken. Must match SYSADMIN_CONFIRM_TOKEN configured in MCP env (human gate).",
-    );
   }
 }
 
