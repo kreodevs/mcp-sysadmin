@@ -1,7 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createToolContext } from "./context.js";
+import { registerCloudflareTools } from "./cloudflare.js";
 import { registerDiagnosticsTools } from "./diagnostics.js";
 import { registerHealthTools } from "./health.js";
+import { registerHetznerOpsTools } from "./hetzner-ops.js";
 import { registerInventoryTools } from "./inventory.js";
 import { registerNodeTools } from "./nodes.js";
 import { registerProxmoxOpsTools } from "./proxmox-ops.js";
@@ -18,4 +20,6 @@ export function registerSysadminTools(server: McpServer) {
   registerHealthTools(server, context);
   registerProxmoxOpsTools(server, context);
   registerDiagnosticsTools(server, context);
+  registerCloudflareTools(server, context);
+  registerHetznerOpsTools(server, context);
 }

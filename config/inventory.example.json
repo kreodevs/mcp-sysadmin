@@ -68,6 +68,44 @@
       "hostKeyFingerprint": "SHA256:REPLACE_WITH_ssh-keyscan_OUTPUT",
       "readOnly": true,
       "tags": ["vps", "web"]
+    },
+    {
+      "id": "hz-cloud",
+      "name": "Hetzner Cloud",
+      "provider": "hetzner",
+      "apiToken": "${HETZNER_API_TOKEN}",
+      "defaultLocation": "fsn1",
+      "readOnly": false,
+      "allowedTools": [
+        "list-vms",
+        "get-vm",
+        "vm-power",
+        "list-nodes",
+        "get-node-status",
+        "health-check",
+        "list-network",
+        "list-hetzner-firewalls",
+        "list-hetzner-volumes"
+      ],
+      "tags": ["cloud", "hetzner"]
+    },
+    {
+      "id": "cf-main",
+      "name": "Cloudflare Production",
+      "provider": "cloudflare",
+      "apiToken": "${CLOUDFLARE_API_TOKEN}",
+      "accountId": "${CLOUDFLARE_ACCOUNT_ID}",
+      "defaultZoneId": "${CLOUDFLARE_ZONE_ID}",
+      "readOnly": true,
+      "allowedTools": [
+        "list-zones",
+        "list-dns-records",
+        "get-dns-record",
+        "list-waf-rules",
+        "health-check",
+        "list-network"
+      ],
+      "tags": ["dns", "cdn", "cloudflare"]
     }
   ]
 }

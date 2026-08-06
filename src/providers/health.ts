@@ -88,6 +88,42 @@ async function checkHost(registry: ProviderRegistry, host: Host): Promise<Health
     };
   }
 
+  if (host.provider === "hetzner") {
+    const client = registry.getHetzner(host.id);
+    const vms = await client.listVms();
+    const stopped = vms.filter((v) => v.status === "stopped");
+    const degraded = vms.filter((v) => ["stopping", "starting", "rebuilding"].includes(v.status));
+    return {
+      hostId: host.id,
+      hostName: host.name,
+      provider: "hetzner",
+      status: degraded.length > 0 ? "degraded" : "healthy",
+      checks: {
+        serversTotal: vms.length,
+        serversRunning: vms.length - stopped.length,
+        serversStopped: stopped.length,
+        serversInTransition: degraded.length,
+      },
+    };
+  }
+
+  if (host.provider === "cloudflare") {
+    const client = registry.getCloudflare(host.id);
+    const token = await client.verifyToken();
+    const zones = await client.listZones();
+    return {
+      hostId: host.id,
+      hostName: host.name,
+      provider: "cloudflare",
+      status: token.status === "active" ? "healthy" : "degraded",
+      checks: {
+        tokenStatus: token.status,
+        tokenExpiresOn: token.expiresOn,
+        zonesTotal: zones.length,
+      },
+    };
+  }
+
   throw new Error(`Unsupported provider for health check: ${(host as Host).provider}`);
 }
 
@@ -113,6 +149,23 @@ export async function listNetworkInfo(registry: ProviderRegistry, hostId: string
     const sshHost = registry.getSsh(hostId);
     const result = await registry.ssh().execInternal(sshHost, "ip -br addr 2>/dev/null || ifconfig -a 2>/dev/null | head -40");
     return { hostId, provider: "ssh", output: result.stdout, exitCode: result.exitCode };
+  }
+
+  if (host.provider === "hetzner") {
+    return {
+      hostId,
+      provider: "hetzner",
+      servers: await registry.getHetzner(hostId).listNetwork(),
+    };
+  }
+
+  if (host.provider === "cloudflare") {
+    const client = registry.getCloudflare(hostId);
+    return {
+      hostId,
+      provider: "cloudflare",
+      ...(await client.listNetwork(node)),
+    };
   }
 
   throw new Error(`list-network not supported for host ${hostId}`);

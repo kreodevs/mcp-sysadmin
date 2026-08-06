@@ -114,7 +114,8 @@ export function registerProxmoxOpsTools(server: McpServer, context: ToolContext)
     "list-network",
     {
       title: "List Network",
-      description: "Interfaces de red en Proxmox, IPs de VPS en Virtualizor, o ip addr en SSH.",
+      description:
+        "Red por proveedor: interfaces Proxmox, IPs Virtualizor/Hetzner, DNS Cloudflare (node=zoneId), ip addr en SSH.",
       inputSchema: HostIdSchema.extend({ node: z.string().optional() }),
     },
     async (input) => {

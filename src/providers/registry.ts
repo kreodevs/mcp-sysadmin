@@ -1,6 +1,20 @@
 import { InventoryStore } from "../config/loader.js";
-import { Host, NodeSummary, ProxmoxHost, Provider, SshHost, VirtualizorHost, VmPowerAction, VmSummary, VmType } from "../config/schema.js";
+import {
+  CloudflareHost,
+  HetznerHost,
+  Host,
+  NodeSummary,
+  ProxmoxHost,
+  Provider,
+  SshHost,
+  VirtualizorHost,
+  VmPowerAction,
+  VmSummary,
+  VmType,
+} from "../config/schema.js";
 import { hostAllowsTool } from "../security/policy.js";
+import { CloudflareClient } from "./cloudflare/client.js";
+import { HetznerClient } from "./hetzner/client.js";
 import { ProxmoxClient } from "./proxmox/client.js";
 import { SshClient } from "./ssh/client.js";
 import { SshDiagnostics } from "./ssh/diagnostics.js";
@@ -10,6 +24,8 @@ export class ProviderRegistry {
   private readonly inventory: InventoryStore;
   private readonly proxmoxClients = new Map<string, ProxmoxClient>();
   private readonly virtualizorClients = new Map<string, VirtualizorClient>();
+  private readonly hetznerClients = new Map<string, HetznerClient>();
+  private readonly cloudflareClients = new Map<string, CloudflareClient>();
   private readonly sshClient = new SshClient();
   private readonly sshDiagnostics: SshDiagnostics;
 
@@ -46,6 +62,26 @@ export class ProviderRegistry {
     return client;
   }
 
+  getHetzner(hostId: string): HetznerClient {
+    let client = this.hetznerClients.get(hostId);
+    if (!client) {
+      const host = this.inventory.requireProvider(hostId, "hetzner") as HetznerHost;
+      client = new HetznerClient(host);
+      this.hetznerClients.set(hostId, client);
+    }
+    return client;
+  }
+
+  getCloudflare(hostId: string): CloudflareClient {
+    let client = this.cloudflareClients.get(hostId);
+    if (!client) {
+      const host = this.inventory.requireProvider(hostId, "cloudflare") as CloudflareHost;
+      client = new CloudflareClient(host);
+      this.cloudflareClients.set(hostId, client);
+    }
+    return client;
+  }
+
   getSsh(hostId: string): SshHost {
     return this.inventory.requireProvider(hostId, "ssh");
   }
@@ -59,6 +95,8 @@ export class ProviderRegistry {
         results.push(...(await this.getProxmox(host.id).listNodes()));
       } else if (host.provider === "virtualizor") {
         results.push(...(await this.getVirtualizor(host.id).listNodes()));
+      } else if (host.provider === "hetzner") {
+        results.push(...(await this.getHetzner(host.id).listNodes()));
       } else if (host.provider === "ssh") {
         results.push({
           hostId: host.id,
@@ -83,6 +121,8 @@ export class ProviderRegistry {
         results.push(...(await this.getProxmox(host.id).listVms(node)));
       } else if (host.provider === "virtualizor") {
         results.push(...(await this.getVirtualizor(host.id).listVms()));
+      } else if (host.provider === "hetzner") {
+        results.push(...(await this.getHetzner(host.id).listVms(node)));
       }
     }
 
@@ -98,6 +138,9 @@ export class ProviderRegistry {
     }
     if (host.provider === "virtualizor") {
       return this.getVirtualizor(hostId).vmPower(vmId, action);
+    }
+    if (host.provider === "hetzner") {
+      return this.getHetzner(hostId).vmPower(vmId, action);
     }
     throw new Error(`Host ${hostId} (${host.provider}) does not manage VMs`);
   }

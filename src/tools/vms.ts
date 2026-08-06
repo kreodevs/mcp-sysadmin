@@ -23,7 +23,7 @@ export function registerVmTools(server: McpServer, context: ToolContext) {
     {
       title: "List VMs",
       description:
-        "Lista VMs/VPS/containers en Proxmox (qemu/lxc) y Virtualizor. " +
+        "Lista VMs/VPS/containers en Proxmox (qemu/lxc), Virtualizor y servidores Hetzner Cloud. " +
         "Si no se especifica hostId, agrega resultados de todos los hypervisors del inventario.",
       inputSchema: ListVmsSchema,
     },
@@ -118,6 +118,11 @@ export function registerVmTools(server: McpServer, context: ToolContext) {
 
         if (host.provider === "virtualizor") {
           const vm = await context.registry.getVirtualizor(input.hostId).getVm(input.vmId);
+          return jsonContent(vm);
+        }
+
+        if (host.provider === "hetzner") {
+          const vm = await context.registry.getHetzner(input.hostId).getVm(input.vmId);
           return jsonContent(vm);
         }
 

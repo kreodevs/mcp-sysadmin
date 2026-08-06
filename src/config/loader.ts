@@ -35,7 +35,7 @@ export class InventoryStore {
     return new InventoryStore(inventory);
   }
 
-  listHosts(filter: "all" | "ssh" | "proxmox" | "virtualizor" = "all"): Host[] {
+  listHosts(filter: "all" | "ssh" | "proxmox" | "virtualizor" | "hetzner" | "cloudflare" = "all"): Host[] {
     if (filter === "all") return this.inventory.hosts;
     return this.inventory.hosts.filter((host) => host.provider === filter);
   }

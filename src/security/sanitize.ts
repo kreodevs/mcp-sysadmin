@@ -39,10 +39,12 @@ export function sanitizeHostRecord(host: Record<string, unknown>): Record<string
     "tokenId",
     "apiKey",
     "apiPass",
+    "apiToken",
     "password",
     "passphrase",
     "privateKeyPath",
     "hostKeyFingerprint",
+    "accountId",
   ]) {
     if (key in copy) {
       copy[key] = "[configured]";

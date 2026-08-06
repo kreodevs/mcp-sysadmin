@@ -1,6 +1,6 @@
 # MCP Sysadmin
 
-Servidor MCP **agnóstico de proveedor** para administrar infraestructura heterogénea: servidores físicos, VPS por SSH, clusters **Proxmox VE** y paneles **Virtualizor**.
+Servidor MCP **agnóstico de proveedor** para administrar infraestructura heterogénea: servidores físicos, VPS por SSH, clusters **Proxmox VE**, paneles **Virtualizor**, **Hetzner Cloud** y **Cloudflare**.
 
 A diferencia de MCPs atados a un hosting (p. ej. Cloudways), este proyecto usa un **inventario JSON** donde registras cada host con su proveedor y credenciales. Un mismo cliente MCP puede operar Proxmox en tu homelab, Virtualizor en un datacenter y servidores bare-metal en otra ubicación.
 
@@ -13,9 +13,13 @@ flowchart LR
   MCP --> SSH[SSH]
   MCP --> PVE[Proxmox API]
   MCP --> VZ[Virtualizor API]
+  MCP --> HZ[Hetzner API]
+  MCP --> CF[Cloudflare API]
   SSH --> Physical[Servidores físicos / VPS]
   PVE --> VMs1[VMs KVM / LXC]
   VZ --> VMs2[VPS OpenVZ/KVM/Xen]
+  HZ --> VMs3[Cloud Servers]
+  CF --> DNS[DNS / CDN / WAF]
 ```
 
 ## Proveedores soportados
@@ -25,8 +29,10 @@ flowchart LR
 | `ssh` | Servidores físicos, VPS sin API, cualquier Linux | Clave privada o password |
 | `proxmox` | Clusters / nodos Proxmox VE | API Token (`PVEAPIToken`) |
 | `virtualizor` | Panel Virtualizor (Admin API) | `apiKey` + `apiPass` |
+| `hetzner` | Hetzner Cloud (servidores, firewalls, volúmenes) | API Token (`Bearer`) |
+| `cloudflare` | DNS, CDN, WAF (zonas y registros) | API Token (`Bearer`) |
 
-## Tools incluidos (28)
+## Tools incluidos (38)
 
 ### Inventario
 - `list-hosts`, `get-host`
@@ -34,11 +40,18 @@ flowchart LR
 ### Nodos / métricas
 - `list-nodes`, `get-node-status`, `health-check`
 
-### Máquinas virtuales
+### Máquinas virtuales / cloud
 - `list-vms`, `list-containers`, `get-vm`, `vm-power`
 - `list-vm-snapshots`, `create-vm-snapshot`
 - `list-proxmox-tasks`, `get-proxmox-task`
 - `list-storage-usage`, `list-backups`, `create-backup`
+- `list-hetzner-firewalls`, `list-hetzner-volumes`
+
+### Cloudflare (DNS / CDN)
+- `list-zones`, `list-dns-records`, `get-dns-record`
+- `create-dns-record`, `update-dns-record`, `delete-dns-record` (confirmToken)
+- `purge-cache` (confirmToken)
+- `list-waf-rules`
 
 ### Red
 - `list-network`
@@ -170,6 +183,39 @@ Crea el token en Proxmox: **Datacenter → Permissions → API Tokens**.
 }
 ```
 
+### Ejemplo: Hetzner Cloud
+
+```json
+{
+  "id": "hz-cloud",
+  "name": "Hetzner Cloud",
+  "provider": "hetzner",
+  "apiToken": "${HETZNER_API_TOKEN}",
+  "defaultLocation": "fsn1",
+  "allowedTools": ["list-vms", "get-vm", "vm-power", "list-nodes", "health-check"],
+  "tags": ["cloud", "hetzner"]
+}
+```
+
+Crea el token en [Hetzner Cloud Console](https://console.hetzner.cloud/) → Security → API Tokens (permisos Read & Write para power actions).
+
+### Ejemplo: Cloudflare
+
+```json
+{
+  "id": "cf-main",
+  "name": "Cloudflare Production",
+  "provider": "cloudflare",
+  "apiToken": "${CLOUDFLARE_API_TOKEN}",
+  "defaultZoneId": "${CLOUDFLARE_ZONE_ID}",
+  "readOnly": true,
+  "allowedTools": ["list-zones", "list-dns-records", "get-dns-record", "list-waf-rules"],
+  "tags": ["dns", "cdn"]
+}
+```
+
+Crea un API Token en Cloudflare con permisos mínimos: Zone → DNS (Read) y, si necesitas escritura, DNS Edit + Cache Purge.
+
 ## Uso con Cursor
 
 Añade en la configuración MCP de Cursor:
@@ -290,13 +336,15 @@ Añade patrones **específicos** en inventario (sin `.*`):
 - `ssh-read-file` — siempre
 - `vm-power` — todas las acciones en producción; stop/shutdown/reboot/reset siempre
 - `create-vm-snapshot` — siempre
+- `create-backup` — siempre
+- `create-dns-record`, `update-dns-record`, `delete-dns-record`, `purge-cache` — siempre
 
 ### Checklist pre-producción
 
 - [ ] `SYSADMIN_PRODUCTION_MODE=true`
 - [ ] `SYSADMIN_CONFIRM_TOKEN` generado (`openssl rand -hex 32`)
 - [ ] Fingerprint SSH en cada host
-- [ ] Tokens Proxmox con permisos mínimos
+- [ ] Tokens Proxmox / Hetzner / Cloudflare con permisos mínimos
 - [ ] `verifySsl: true` en Proxmox
 - [ ] `allowedTools` por host según necesidad
 - [ ] Inventario sin passwords en texto plano
@@ -308,7 +356,7 @@ GitHub Actions ejecuta `typecheck` + `build` en cada push/PR a `main`.
 
 ## Extensión
 
-Para añadir otro proveedor (Hetzner, oVirt, VMware, etc.):
+Para añadir otro proveedor (oVirt, VMware, AWS, etc.):
 
 1. Añade el provider en `src/config/schema.ts`
 2. Implementa cliente en `src/providers/<nombre>/client.ts`

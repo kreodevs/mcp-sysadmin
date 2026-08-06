@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const ProviderSchema = z.enum(["ssh", "proxmox", "virtualizor"]);
+export const ProviderSchema = z.enum(["ssh", "proxmox", "virtualizor", "hetzner", "cloudflare"]);
 
 export const BaseHostSchema = z.object({
   id: z.string().min(1),
@@ -51,10 +51,25 @@ export const VirtualizorHostSchema = BaseHostSchema.extend({
   port: z.number().int().positive().optional(),
 });
 
+export const HetznerHostSchema = BaseHostSchema.extend({
+  provider: z.literal("hetzner"),
+  apiToken: z.string().min(1),
+  defaultLocation: z.string().optional().describe("Filtrar servidores por location (fsn1, nbg1, hel1, etc.)"),
+});
+
+export const CloudflareHostSchema = BaseHostSchema.extend({
+  provider: z.literal("cloudflare"),
+  apiToken: z.string().min(1),
+  accountId: z.string().optional(),
+  defaultZoneId: z.string().optional().describe("Zone ID por defecto para tools DNS"),
+});
+
 export const HostSchema = z.discriminatedUnion("provider", [
   SshHostSchema,
   ProxmoxHostSchema,
   VirtualizorHostSchema,
+  HetznerHostSchema,
+  CloudflareHostSchema,
 ]);
 
 export const InventorySchema = z.object({
@@ -73,6 +88,8 @@ export type Provider = z.infer<typeof ProviderSchema>;
 export type SshHost = z.infer<typeof SshHostSchema>;
 export type ProxmoxHost = z.infer<typeof ProxmoxHostSchema>;
 export type VirtualizorHost = z.infer<typeof VirtualizorHostSchema>;
+export type HetznerHost = z.infer<typeof HetznerHostSchema>;
+export type CloudflareHost = z.infer<typeof CloudflareHostSchema>;
 export type Host = z.infer<typeof HostSchema>;
 export type Inventory = z.infer<typeof InventorySchema>;
 
@@ -150,4 +167,6 @@ export const SshReadFileSchema = HostIdSchema.merge(ConfirmSchema).extend({
   maxBytes: z.number().int().positive().max(1_048_576).optional(),
 });
 
-export const ProviderFilterSchema = z.enum(["all", "ssh", "proxmox", "virtualizor"]).default("all");
+export const ProviderFilterSchema = z
+  .enum(["all", "ssh", "proxmox", "virtualizor", "hetzner", "cloudflare"])
+  .default("all");

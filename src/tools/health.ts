@@ -15,8 +15,8 @@ export function registerHealthTools(server: McpServer, context: ToolContext) {
     {
       title: "Health Check",
       description:
-        "Revisión read-only de salud: SSH (disco/memoria), Proxmox (nodos/VMs), Virtualizor (VPS). " +
-        "Devuelve healthy, degraded o unreachable por host.",
+        "Revisión read-only de salud: SSH (disco/memoria), Proxmox (nodos/VMs), Virtualizor (VPS), " +
+        "Hetzner (servidores), Cloudflare (token/zonas). Devuelve healthy, degraded o unreachable por host.",
       inputSchema: HealthSchema,
     },
     async (input) => {

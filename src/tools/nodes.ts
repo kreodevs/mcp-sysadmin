@@ -10,7 +10,7 @@ const ListNodesSchema = z.object({
 });
 
 const NodeStatusSchema = HostIdSchema.extend({
-  nodeId: z.string().optional().describe("ID del nodo (Proxmox node o Virtualizor server). En SSH usa el hostId."),
+  nodeId: z.string().optional().describe("ID del nodo (Proxmox node, Virtualizor server, Hetzner location). En SSH usa el hostId."),
 });
 
 export function registerNodeTools(server: McpServer, context: ToolContext) {
@@ -19,7 +19,7 @@ export function registerNodeTools(server: McpServer, context: ToolContext) {
     {
       title: "List Nodes",
       description:
-        "Lista nodos/hypervisors: nodos de cluster Proxmox, servidores en Virtualizor, o hosts SSH como nodos individuales.",
+        "Lista nodos/hypervisors: nodos Proxmox, servidores Virtualizor, locations Hetzner, o hosts SSH individuales.",
       inputSchema: ListNodesSchema,
     },
     async (input) => {
@@ -78,6 +78,20 @@ export function registerNodeTools(server: McpServer, context: ToolContext) {
           const sshHost = context.registry.getSsh(input.hostId);
           const stats = await context.registry.ssh().getHostStats(sshHost);
           return jsonContent(stats);
+        }
+
+        if (host.provider === "hetzner") {
+          const client = context.registry.getHetzner(input.hostId);
+          const hetznerHost = context.registry.getHost(input.hostId);
+          const nodeId =
+            input.nodeId ??
+            (hetznerHost.provider === "hetzner" ? hetznerHost.defaultLocation : undefined);
+          if (!nodeId) {
+            const nodes = await client.listNodes();
+            return jsonContent({ hostId: input.hostId, locations: nodes });
+          }
+          const status = await client.getNodeStatus(nodeId);
+          return jsonContent(status);
         }
 
         return toolError(new Error(`Unsupported provider for host ${input.hostId}`));
