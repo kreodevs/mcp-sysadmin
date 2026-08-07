@@ -70,6 +70,8 @@ flowchart LR
 
 ## Instalación
 
+> 📖 **Manuales operativos:** consulta la carpeta [`manuales/`](./manuales/) para guías detalladas por provider y el [manual general de uso](./manuales/manual-general.md).
+
 ```bash
 npm install
 npm run build
