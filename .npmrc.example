@@ -1,0 +1,8 @@
+# GitHub Packages (npm) — consumo e instalación
+# Copia a ~/.npmrc o incluye en tu proyecto.
+# Paquetes públicos de @kreodevs no requieren token para lectura.
+
+@kreodevs:registry=https://npm.pkg.github.com
+
+# Solo necesario para publicar o instalar paquetes privados:
+# //npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN

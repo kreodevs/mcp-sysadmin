@@ -70,12 +70,65 @@ flowchart LR
 
 ## Instalación
 
-> 📖 **Manuales operativos:** consulta la carpeta [`manuales/`](./manuales/) para guías detalladas por provider y el [manual general de uso](./manuales/manual-general.md).
+> 📖 **Manuales operativos:** [`manuales/`](./manuales/) — [manual general](./manuales/manual-general.md) y guías por provider.
+
+### Opción A — GitHub Packages + npx (recomendado)
+
+Publicado en [GitHub Packages](https://github.com/kreodevs/mcp-sysadmin/pkgs/npm/mcp-sysadmin) como **`@kreodevs/mcp-sysadmin`**. No necesitas clonar el repo.
+
+**1. Registry de GitHub** (una vez por máquina):
 
 ```bash
+echo "@kreodevs:registry=https://npm.pkg.github.com" >> ~/.npmrc
+```
+
+O copia [`.npmrc.example`](.npmrc.example). Los paquetes **públicos** no requieren token para instalar.
+
+**2. Inventario** — crea tu `inventory.json` en cualquier ruta (p. ej. `~/mcp/inventory.json`). Puedes basarte en [`config/inventory.example.json`](config/inventory.example.json).
+
+**3. Probar en terminal:**
+
+```bash
+export SYSADMIN_INVENTORY_PATH=~/mcp/inventory.json
+export SYSADMIN_PRODUCTION_MODE=true
+export SYSADMIN_CONFIRM_TOKEN=$(openssl rand -hex 32)
+
+npx -y @kreodevs/mcp-sysadmin
+```
+
+**4. Cliente MCP** — configura `npx` (ver [Instalación por cliente MCP](#instalación-por-cliente-mcp) abajo).
+
+| Cliente | Botón 1 clic |
+|---------|--------------|
+| **Cursor** | [![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=mcp-sysadmin&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIi0tcmVnaXN0cnk9aHR0cHM6Ly9ucG0ucGtnLmdpdGh1Yi5jb20iLCJAa3Jlb2RldnMvbWNwLXN5c2FkbWluIl0sImVudiI6eyJTWVNBRE1JTl9JTlZFTlRPUllfUEFUSCI6Ii9wYXRoL3RvL2ludmVudG9yeS5qc29uIiwiU1lTQURNSU5fUFJPRFVDVElPTl9NT0RFIjoidHJ1ZSIsIlNZU0FETUlOX0NPTkZJUk1fVE9LRU4iOiJHRU5FUkFfQ09OX29wZW5zc2xfcmFuZF9oZXhfMzIiLCJTWVNBRE1JTl9SRVFVSVJFX0NPTkZJUk0iOiJ0cnVlIn19) |
+| **VS Code** | [![Install MCP in VS Code](https://img.shields.io/badge/VS_Code-Install_MCP-007ACC?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=mcp-sysadmin&config=%7B%22name%22%3A%22mcp-sysadmin%22%2C%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22--registry%3Dhttps%3A%2F%2Fnpm.pkg.github.com%22%2C%22%40kreodevs%2Fmcp-sysadmin%22%5D%2C%22env%22%3A%7B%22SYSADMIN_INVENTORY_PATH%22%3A%22%2Fpath%2Fto%2Finventory.json%22%2C%22SYSADMIN_PRODUCTION_MODE%22%3A%22true%22%2C%22SYSADMIN_CONFIRM_TOKEN%22%3A%22GENERA_CON_openssl_rand_hex_32%22%2C%22SYSADMIN_REQUIRE_CONFIRM%22%3A%22true%22%7D%7D) |
+
+> ⚠️ Tras el 1 clic, edita en el diálogo: **`SYSADMIN_INVENTORY_PATH`** (ruta a tu inventario) y **`SYSADMIN_CONFIRM_TOKEN`**.
+
+Generar enlaces personalizados:
+
+```bash
+SYSADMIN_INVENTORY_PATH=/ruta/a/inventory.json ./scripts/generate-install-links.sh
+# Modo desarrollo local (clone): INSTALL_MODE=local ./scripts/generate-install-links.sh
+```
+
+### Opción B — Desarrollo desde fuente
+
+```bash
+git clone https://github.com/kreodevs/mcp-sysadmin.git
+cd mcp-sysadmin
 npm install
 npm run build
+cp config/inventory.example.json config/inventory.json
 ```
+
+Usa [`scripts/run-mcp.sh`](scripts/run-mcp.sh) o `npm run dev`.
+
+### Publicar nueva versión (maintainers)
+
+1. Sube la versión en `package.json` y `src/index.ts`
+2. Crea un **GitHub Release** (tag `vX.Y.Z`) → el workflow [`.github/workflows/publish.yml`](.github/workflows/publish.yml) publica en GitHub Packages
+3. Verifica en **Packages** del repo: `@kreodevs/mcp-sysadmin`
 
 ## Configuración
 
@@ -220,23 +273,18 @@ Crea un API Token en Cloudflare con permisos mínimos: Zone → DNS (Read) y, si
 
 ## Instalación por cliente MCP
 
-Tras compilar el proyecto (`npm install && npm run build`), elige tu cliente. Todos usan transporte **stdio** (proceso local).
+Transporte **stdio**: el cliente lanza `npx @kreodevs/mcp-sysadmin` (GitHub Packages) o un script local en desarrollo.
+
+> Requisito previo: [`@kreodevs:registry=https://npm.pkg.github.com`](.npmrc.example) en `~/.npmrc` **o** `--registry=https://npm.pkg.github.com` en los `args` de npx (incluido en los ejemplos).
 
 ### Instalación rápida (1 clic)
 
-> ⚠️ **Importante:** Los botones usan rutas plantilla `/path/to/mcp-sysadmin`. Cursor/VS Code mostrarán un diálogo de confirmación — **sustituye por la ruta absoluta de tu clone** y configura `SYSADMIN_CONFIRM_TOKEN` antes de instalar.  
-> Para generar botones con **tus rutas reales** automáticamente:
+Los botones de la sección [Instalación → Opción A](#opción-a--github-packages--npx-recomendado) usan **npx + GitHub Packages**. Solo debes ajustar `SYSADMIN_INVENTORY_PATH` y `SYSADMIN_CONFIRM_TOKEN` en el diálogo del IDE.
 
 ```bash
-./scripts/generate-install-links.sh
+# Enlaces con tu inventario:
+SYSADMIN_INVENTORY_PATH=/ruta/a/inventory.json ./scripts/generate-install-links.sh
 ```
-
-| Cliente | Botón |
-|---------|-------|
-| **Cursor** | [![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=mcp-sysadmin&config=eyJjb21tYW5kIjoiL3BhdGgvdG8vbWNwLXN5c2FkbWluL3NjcmlwdHMvcnVuLW1jcC5zaCIsImFyZ3MiOltdLCJlbnYiOnsiU1lTQURNSU5fSU5WRU5UT1JZX1BBVEgiOiIvcGF0aC90by9tY3Atc3lzYWRtaW4vY29uZmlnL2ludmVudG9yeS5qc29uIiwiU1lTQURNSU5fUFJPRFVDVElPTl9NT0RFIjoidHJ1ZSIsIlNZU0FETUlOX0NPTkZJUk1fVE9LRU4iOiJHRU5FUkFfQ09OX29wZW5zc2xfcmFuZF9oZXhfMzIiLCJTWVNBRE1JTl9SRVFVSVJFX0NPTkZJUk0iOiJ0cnVlIn19) |
-| **VS Code** | [![Install MCP in VS Code](https://img.shields.io/badge/VS_Code-Install_MCP-007ACC?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=mcp-sysadmin&config=%7B%22name%22%3A%22mcp-sysadmin%22%2C%22command%22%3A%22%2Fpath%2Fto%2Fmcp-sysadmin%2Fscripts%2Frun-mcp.sh%22%2C%22args%22%3A%5B%5D%2C%22env%22%3A%7B%22SYSADMIN_INVENTORY_PATH%22%3A%22%2Fpath%2Fto%2Fmcp-sysadmin%2Fconfig%2Finventory.json%22%2C%22SYSADMIN_PRODUCTION_MODE%22%3A%22true%22%2C%22SYSADMIN_CONFIRM_TOKEN%22%3A%22GENERA_CON_openssl_rand_hex_32%22%2C%22SYSADMIN_REQUIRE_CONFIRM%22%3A%22true%22%7D%7D) |
-
-El wrapper [`scripts/run-mcp.sh`](scripts/run-mcp.sh) resuelve rutas relativas al repo; los clientes MCP deben invocarlo con **ruta absoluta**.
 
 ---
 
@@ -246,21 +294,16 @@ El wrapper [`scripts/run-mcp.sh`](scripts/run-mcp.sh) resuelve rutas relativas a
 
 **UI:** *Settings → Tools & MCP → New MCP Server*
 
-**1 clic:** botón **Add to Cursor** arriba, o deeplink:
-
-```text
-cursor://anysphere.cursor-deeplink/mcp/install?name=mcp-sysadmin&config=<base64>
-```
-
-**Manual:**
+**Manual (GitHub Packages):**
 
 ```json
 {
   "mcpServers": {
     "sysadmin": {
-      "command": "/ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh",
+      "command": "npx",
+      "args": ["-y", "--registry=https://npm.pkg.github.com", "@kreodevs/mcp-sysadmin"],
       "env": {
-        "SYSADMIN_INVENTORY_PATH": "/ruta/absoluta/mcp-sysadmin/config/inventory.json",
+        "SYSADMIN_INVENTORY_PATH": "/ruta/a/inventory.json",
         "SYSADMIN_PRODUCTION_MODE": "true",
         "SYSADMIN_CONFIRM_TOKEN": "tu-secreto-humano",
         "SYSADMIN_REQUIRE_CONFIRM": "true",
@@ -270,6 +313,26 @@ cursor://anysphere.cursor-deeplink/mcp/install?name=mcp-sysadmin&config=<base64>
   }
 }
 ```
+
+<details>
+<summary>Desarrollo local (clone del repo)</summary>
+
+```json
+{
+  "mcpServers": {
+    "sysadmin": {
+      "command": "/ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh",
+      "env": {
+        "SYSADMIN_INVENTORY_PATH": "/ruta/absoluta/mcp-sysadmin/config/inventory.json",
+        "SYSADMIN_PRODUCTION_MODE": "true",
+        "SYSADMIN_CONFIRM_TOKEN": "tu-secreto-humano"
+      }
+    }
+  }
+}
+```
+
+</details>
 
 ---
 
@@ -284,15 +347,14 @@ cursor://anysphere.cursor-deeplink/mcp/install?name=mcp-sysadmin&config=<base64>
 
 **UI:** *Settings → Developer → Edit Config*
 
-Claude Desktop solo soporta **stdio**. Usa el mismo bloque `mcpServers` que Cursor (sin deeplink). **Reinicia la app** tras guardar.
-
 ```json
 {
   "mcpServers": {
     "sysadmin": {
-      "command": "/ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh",
+      "command": "npx",
+      "args": ["-y", "--registry=https://npm.pkg.github.com", "@kreodevs/mcp-sysadmin"],
       "env": {
-        "SYSADMIN_INVENTORY_PATH": "/ruta/absoluta/mcp-sysadmin/config/inventory.json",
+        "SYSADMIN_INVENTORY_PATH": "/ruta/a/inventory.json",
         "SYSADMIN_PRODUCTION_MODE": "true",
         "SYSADMIN_CONFIRM_TOKEN": "tu-secreto-humano"
       }
@@ -301,35 +363,23 @@ Claude Desktop solo soporta **stdio**. Usa el mismo bloque `mcpServers` que Curs
 }
 ```
 
+Reinicia Claude Desktop tras guardar.
+
 ---
 
 ### Claude Code (CLI)
 
-**Archivo:** `~/.claude.json` (global) o `.mcp.json` en el proyecto
-
-**CLI:**
-
 ```bash
-claude mcp add sysadmin -- /ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh
+claude mcp add sysadmin -- npx -y --registry=https://npm.pkg.github.com @kreodevs/mcp-sysadmin
 ```
 
-Define variables de entorno en el mismo archivo de config o exporta antes de lanzar `claude`.
+Exporta `SYSADMIN_INVENTORY_PATH` y `SYSADMIN_CONFIRM_TOKEN` en el entorno o en la config de Claude Code.
 
 ---
 
 ### OpenCode
 
-**Archivo:** `opencode.json` / `opencode.jsonc` (proyecto) o `~/.config/opencode/opencode.json` (global)
-
-**CLI interactivo:**
-
-```bash
-opencode mcp add
-# Tipo: local → command: ["/ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh"]
-opencode mcp list
-```
-
-**Manual** (formato OpenCode — clave raíz `mcp`, no `mcpServers`):
+**Archivo:** `opencode.json` / `opencode.jsonc` (proyecto) o `~/.config/opencode/opencode.json`
 
 ```json
 {
@@ -337,10 +387,15 @@ opencode mcp list
   "mcp": {
     "sysadmin": {
       "type": "local",
-      "command": ["/ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh"],
+      "command": [
+        "npx",
+        "-y",
+        "--registry=https://npm.pkg.github.com",
+        "@kreodevs/mcp-sysadmin"
+      ],
       "enabled": true,
       "environment": {
-        "SYSADMIN_INVENTORY_PATH": "/ruta/absoluta/mcp-sysadmin/config/inventory.json",
+        "SYSADMIN_INVENTORY_PATH": "/ruta/a/inventory.json",
         "SYSADMIN_PRODUCTION_MODE": "true",
         "SYSADMIN_CONFIRM_TOKEN": "tu-secreto-humano",
         "SYSADMIN_REQUIRE_CONFIRM": "true"
@@ -350,15 +405,18 @@ opencode mcp list
 }
 ```
 
-> ⚠️ **Importante:** OpenCode usa `environment`, no `env`. El `command` debe ser un **array**.
+> OpenCode usa `environment`, no `env`. El `command` debe ser un **array**.
+
+```bash
+opencode mcp add
+opencode mcp list
+```
 
 ---
 
 ### VS Code
 
-**Archivo:** `.vscode/mcp.json` (workspace) o configuración de usuario MCP
-
-**1 clic:** botón **Install MCP in VS Code** arriba.
+**Archivo:** `.vscode/mcp.json` (workspace)
 
 **Manual:**
 
@@ -367,9 +425,10 @@ opencode mcp list
   "servers": {
     "sysadmin": {
       "type": "stdio",
-      "command": "/ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh",
+      "command": "npx",
+      "args": ["-y", "--registry=https://npm.pkg.github.com", "@kreodevs/mcp-sysadmin"],
       "env": {
-        "SYSADMIN_INVENTORY_PATH": "/ruta/absoluta/mcp-sysadmin/config/inventory.json",
+        "SYSADMIN_INVENTORY_PATH": "/ruta/a/inventory.json",
         "SYSADMIN_PRODUCTION_MODE": "true",
         "SYSADMIN_CONFIRM_TOKEN": "tu-secreto-humano"
       }
@@ -378,24 +437,22 @@ opencode mcp list
 }
 ```
 
-Requiere extensión **GitHub Copilot** con soporte MCP o extensión MCP compatible.
+Requiere GitHub Copilot con MCP o extensión compatible.
 
 ---
 
 ### Windsurf (Cascade)
 
-**Archivo:** `~/.codeium/windsurf/mcp_config.json`  
-(Windows: `%USERPROFILE%\.codeium\windsurf\mcp_config.json`)
-
-**UI:** *Cascade → MCPs (icono) → Configure* o *Settings → Cascade → Manage MCPs → Add Server*
+**Archivo:** `~/.codeium/windsurf/mcp_config.json`
 
 ```json
 {
   "mcpServers": {
     "sysadmin": {
-      "command": "/ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh",
+      "command": "npx",
+      "args": ["-y", "--registry=https://npm.pkg.github.com", "@kreodevs/mcp-sysadmin"],
       "env": {
-        "SYSADMIN_INVENTORY_PATH": "/ruta/absoluta/mcp-sysadmin/config/inventory.json",
+        "SYSADMIN_INVENTORY_PATH": "/ruta/a/inventory.json",
         "SYSADMIN_PRODUCTION_MODE": "true",
         "SYSADMIN_CONFIRM_TOKEN": "tu-secreto-humano"
       }
@@ -404,14 +461,14 @@ Requiere extensión **GitHub Copilot** con soporte MCP o extensión MCP compatib
 }
 ```
 
-Pulsa **Refresh** en la UI de MCPs tras guardar. Windsurf limita ~100 tools entre todos los servidores.
+Pulsa **Refresh** en MCPs. Límite ~100 tools entre servidores.
 
 ---
 
 ### Variables de entorno recomendadas (todos los clientes)
 
 ```env
-SYSADMIN_INVENTORY_PATH=/ruta/absoluta/mcp-sysadmin/config/inventory.json
+SYSADMIN_INVENTORY_PATH=/ruta/a/inventory.json
 SYSADMIN_PRODUCTION_MODE=true
 SYSADMIN_CONFIRM_TOKEN=<openssl rand -hex 32>
 SYSADMIN_READ_ONLY=false
@@ -530,9 +587,10 @@ Añade patrones **específicos** en inventario (sin `.*`):
 - [ ] Inventario sin passwords en texto plano
 - [ ] Probar una operación destructiva con token manual
 
-## CI
+## CI y publicación
 
-GitHub Actions ejecuta `typecheck` + `build` en cada push/PR a `main`.
+- **CI:** GitHub Actions ejecuta `typecheck` + `build` en cada push/PR a `main` ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml))
+- **Paquete npm:** [`@kreodevs/mcp-sysadmin`](https://github.com/kreodevs/mcp-sysadmin/pkgs/npm/mcp-sysadmin) en GitHub Packages — publicado al crear un **GitHub Release**
 
 ## Extensión
 

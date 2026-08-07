@@ -25,17 +25,26 @@ Documentación derivada del código en `src/index.ts`, `src/config/`, `src/secur
 
 ### 2. Guía Operativa Paso a Paso
 
-#### Paso 1: Instalación y compilación
+#### Paso 1: Instalación del paquete
 
-Clona o descarga el repositorio y compila el servidor TypeScript a JavaScript en `dist/`:
+**Recomendado (GitHub Packages):**
 
 ```bash
-cd mcp-sysadmin
-npm install
-npm run build
+echo "@kreodevs:registry=https://npm.pkg.github.com" >> ~/.npmrc
+
+export SYSADMIN_INVENTORY_PATH=/ruta/a/inventory.json
+export SYSADMIN_PRODUCTION_MODE=true
+export SYSADMIN_CONFIRM_TOKEN=$(openssl rand -hex 32)
+
+npx -y @kreodevs/mcp-sysadmin
 ```
 
-Verifica que `dist/index.js` existe. Ese archivo es el punto de entrada del binario `mcp-sysadmin`.
+**Alternativa (desarrollo desde fuente):**
+
+```bash
+git clone https://github.com/kreodevs/mcp-sysadmin.git
+cd mcp-sysadmin && npm install && npm run build
+```
 
 #### Paso 2: Configurar el inventario
 
@@ -76,11 +85,11 @@ Las credenciales por host (`PROXMOX_HOMELAB_TOKEN`, `HETZNER_API_TOKEN`, etc.) s
 
 #### Paso 4: Registrar el servidor en tu cliente MCP
 
-Consulta la sección **[Instalación por cliente MCP](../README.md#instalación-por-cliente-mcp)** del README para:
+Consulta la sección **[Instalación → GitHub Packages](../README.md#opción-a--github-packages--npx-recomendado)** del README.
 
-- Botones **1 clic** (Cursor, VS Code)
-- Configuración manual (Claude Desktop, OpenCode, Windsurf, Claude Code)
-- Script `./scripts/generate-install-links.sh` con rutas absolutas de tu máquina
+- Botones **1 clic** con `npx @kreodevs/mcp-sysadmin` (Cursor, VS Code)
+- Configuración manual por cliente (Claude, OpenCode, Windsurf)
+- `./scripts/generate-install-links.sh` con tu `SYSADMIN_INVENTORY_PATH`
 
 **Cursor (resumen):** añade en `~/.cursor/mcp.json` o `.cursor/mcp.json`:
 
@@ -88,14 +97,12 @@ Consulta la sección **[Instalación por cliente MCP](../README.md#instalación-
 {
   "mcpServers": {
     "sysadmin": {
-      "command": "/ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh",
+      "command": "npx",
+      "args": ["-y", "--registry=https://npm.pkg.github.com", "@kreodevs/mcp-sysadmin"],
       "env": {
-        "SYSADMIN_INVENTORY_PATH": "/ruta/absoluta/mcp-sysadmin/config/inventory.json",
+        "SYSADMIN_INVENTORY_PATH": "/ruta/a/inventory.json",
         "SYSADMIN_PRODUCTION_MODE": "true",
-        "SYSADMIN_CONFIRM_TOKEN": "tu-secreto-no-compartir-con-el-modelo",
-        "PROXMOX_HOMELAB_TOKEN": "...",
-        "HETZNER_API_TOKEN": "...",
-        "CLOUDFLARE_API_TOKEN": "..."
+        "SYSADMIN_CONFIRM_TOKEN": "tu-secreto-humano"
       }
     }
   }

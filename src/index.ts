@@ -6,7 +6,7 @@ import { registerSysadminTools } from "./tools/index.js";
 
 const server = new McpServer({
   name: "mcp-sysadmin",
-  version: "1.4.0",
+  version: "1.5.0",
 });
 
 registerSysadminTools(server);

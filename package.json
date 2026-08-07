@@ -1,6 +1,6 @@
 {
-  "name": "mcp-sysadmin",
-  "version": "1.4.0",
+  "name": "@kreodevs/mcp-sysadmin",
+  "version": "1.5.0",
   "description": "Provider-agnostic MCP server for physical servers, Proxmox, Virtualizor, Hetzner Cloud, Cloudflare, and SSH hosts.",
   "type": "module",
   "main": "dist/index.js",
@@ -14,11 +14,15 @@
     "config/inventory.example.json",
     "README.md"
   ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "mcp",
@@ -34,7 +38,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kreodevs/mcp-sysadmin.git"
+    "url": "git+https://github.com/kreodevs/mcp-sysadmin.git"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
