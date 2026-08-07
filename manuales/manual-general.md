@@ -74,16 +74,21 @@ SYSADMIN_SSH_TIMEOUT_MS=30000
 
 Las credenciales por host (`PROXMOX_HOMELAB_TOKEN`, `HETZNER_API_TOKEN`, etc.) se referencian en el inventario como `"${PROXMOX_HOMELAB_TOKEN}"` y se resuelven al arrancar el servidor.
 
-#### Paso 4: Registrar el servidor en Cursor
+#### Paso 4: Registrar el servidor en tu cliente MCP
 
-En la configuración MCP (Settings → MCP):
+Consulta la sección **[Instalación por cliente MCP](../README.md#instalación-por-cliente-mcp)** del README para:
+
+- Botones **1 clic** (Cursor, VS Code)
+- Configuración manual (Claude Desktop, OpenCode, Windsurf, Claude Code)
+- Script `./scripts/generate-install-links.sh` con rutas absolutas de tu máquina
+
+**Cursor (resumen):** añade en `~/.cursor/mcp.json` o `.cursor/mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "sysadmin": {
-      "command": "node",
-      "args": ["/ruta/absoluta/mcp-sysadmin/dist/index.js"],
+      "command": "/ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh",
       "env": {
         "SYSADMIN_INVENTORY_PATH": "/ruta/absoluta/mcp-sysadmin/config/inventory.json",
         "SYSADMIN_PRODUCTION_MODE": "true",

@@ -218,32 +218,210 @@ Crea el token en [Hetzner Cloud Console](https://console.hetzner.cloud/) → Sec
 
 Crea un API Token en Cloudflare con permisos mínimos: Zone → DNS (Read) y, si necesitas escritura, DNS Edit + Cache Purge.
 
-## Uso con Cursor
+## Instalación por cliente MCP
 
-Añade en la configuración MCP de Cursor:
+Tras compilar el proyecto (`npm install && npm run build`), elige tu cliente. Todos usan transporte **stdio** (proceso local).
+
+### Instalación rápida (1 clic)
+
+> ⚠️ **Importante:** Los botones usan rutas plantilla `/path/to/mcp-sysadmin`. Cursor/VS Code mostrarán un diálogo de confirmación — **sustituye por la ruta absoluta de tu clone** y configura `SYSADMIN_CONFIRM_TOKEN` antes de instalar.  
+> Para generar botones con **tus rutas reales** automáticamente:
+
+```bash
+./scripts/generate-install-links.sh
+```
+
+| Cliente | Botón |
+|---------|-------|
+| **Cursor** | [![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=mcp-sysadmin&config=eyJjb21tYW5kIjoiL3BhdGgvdG8vbWNwLXN5c2FkbWluL3NjcmlwdHMvcnVuLW1jcC5zaCIsImFyZ3MiOltdLCJlbnYiOnsiU1lTQURNSU5fSU5WRU5UT1JZX1BBVEgiOiIvcGF0aC90by9tY3Atc3lzYWRtaW4vY29uZmlnL2ludmVudG9yeS5qc29uIiwiU1lTQURNSU5fUFJPRFVDVElPTl9NT0RFIjoidHJ1ZSIsIlNZU0FETUlOX0NPTkZJUk1fVE9LRU4iOiJHRU5FUkFfQ09OX29wZW5zc2xfcmFuZF9oZXhfMzIiLCJTWVNBRE1JTl9SRVFVSVJFX0NPTkZJUk0iOiJ0cnVlIn19) |
+| **VS Code** | [![Install MCP in VS Code](https://img.shields.io/badge/VS_Code-Install_MCP-007ACC?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=mcp-sysadmin&config=%7B%22name%22%3A%22mcp-sysadmin%22%2C%22command%22%3A%22%2Fpath%2Fto%2Fmcp-sysadmin%2Fscripts%2Frun-mcp.sh%22%2C%22args%22%3A%5B%5D%2C%22env%22%3A%7B%22SYSADMIN_INVENTORY_PATH%22%3A%22%2Fpath%2Fto%2Fmcp-sysadmin%2Fconfig%2Finventory.json%22%2C%22SYSADMIN_PRODUCTION_MODE%22%3A%22true%22%2C%22SYSADMIN_CONFIRM_TOKEN%22%3A%22GENERA_CON_openssl_rand_hex_32%22%2C%22SYSADMIN_REQUIRE_CONFIRM%22%3A%22true%22%7D%7D) |
+
+El wrapper [`scripts/run-mcp.sh`](scripts/run-mcp.sh) resuelve rutas relativas al repo; los clientes MCP deben invocarlo con **ruta absoluta**.
+
+---
+
+### Cursor
+
+**Archivo:** `~/.cursor/mcp.json` (global) o `.cursor/mcp.json` (por proyecto)
+
+**UI:** *Settings → Tools & MCP → New MCP Server*
+
+**1 clic:** botón **Add to Cursor** arriba, o deeplink:
+
+```text
+cursor://anysphere.cursor-deeplink/mcp/install?name=mcp-sysadmin&config=<base64>
+```
+
+**Manual:**
 
 ```json
 {
   "mcpServers": {
     "sysadmin": {
-      "command": "node",
-      "args": ["/ruta/absoluta/mcp-sysadmin/dist/index.js"],
+      "command": "/ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh",
       "env": {
         "SYSADMIN_INVENTORY_PATH": "/ruta/absoluta/mcp-sysadmin/config/inventory.json",
         "SYSADMIN_PRODUCTION_MODE": "true",
-        "SYSADMIN_CONFIRM_TOKEN": "tu-secreto-humano-no-compartir-con-el-modelo",
-        "SYSADMIN_READ_ONLY": "false",
+        "SYSADMIN_CONFIRM_TOKEN": "tu-secreto-humano",
         "SYSADMIN_REQUIRE_CONFIRM": "true",
-        "PROXMOX_HOMELAB_TOKEN": "tu-token",
-        "VIRTUALIZOR_API_KEY": "tu-key",
-        "VIRTUALIZOR_API_PASS": "tu-pass"
+        "PROXMOX_HOMELAB_TOKEN": "..."
       }
     }
   }
 }
 ```
 
-Desarrollo local:
+---
+
+### Claude Desktop
+
+**Archivo:**
+
+| SO | Ruta |
+|----|------|
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+
+**UI:** *Settings → Developer → Edit Config*
+
+Claude Desktop solo soporta **stdio**. Usa el mismo bloque `mcpServers` que Cursor (sin deeplink). **Reinicia la app** tras guardar.
+
+```json
+{
+  "mcpServers": {
+    "sysadmin": {
+      "command": "/ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh",
+      "env": {
+        "SYSADMIN_INVENTORY_PATH": "/ruta/absoluta/mcp-sysadmin/config/inventory.json",
+        "SYSADMIN_PRODUCTION_MODE": "true",
+        "SYSADMIN_CONFIRM_TOKEN": "tu-secreto-humano"
+      }
+    }
+  }
+}
+```
+
+---
+
+### Claude Code (CLI)
+
+**Archivo:** `~/.claude.json` (global) o `.mcp.json` en el proyecto
+
+**CLI:**
+
+```bash
+claude mcp add sysadmin -- /ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh
+```
+
+Define variables de entorno en el mismo archivo de config o exporta antes de lanzar `claude`.
+
+---
+
+### OpenCode
+
+**Archivo:** `opencode.json` / `opencode.jsonc` (proyecto) o `~/.config/opencode/opencode.json` (global)
+
+**CLI interactivo:**
+
+```bash
+opencode mcp add
+# Tipo: local → command: ["/ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh"]
+opencode mcp list
+```
+
+**Manual** (formato OpenCode — clave raíz `mcp`, no `mcpServers`):
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "sysadmin": {
+      "type": "local",
+      "command": ["/ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh"],
+      "enabled": true,
+      "environment": {
+        "SYSADMIN_INVENTORY_PATH": "/ruta/absoluta/mcp-sysadmin/config/inventory.json",
+        "SYSADMIN_PRODUCTION_MODE": "true",
+        "SYSADMIN_CONFIRM_TOKEN": "tu-secreto-humano",
+        "SYSADMIN_REQUIRE_CONFIRM": "true"
+      }
+    }
+  }
+}
+```
+
+> ⚠️ **Importante:** OpenCode usa `environment`, no `env`. El `command` debe ser un **array**.
+
+---
+
+### VS Code
+
+**Archivo:** `.vscode/mcp.json` (workspace) o configuración de usuario MCP
+
+**1 clic:** botón **Install MCP in VS Code** arriba.
+
+**Manual:**
+
+```json
+{
+  "servers": {
+    "sysadmin": {
+      "type": "stdio",
+      "command": "/ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh",
+      "env": {
+        "SYSADMIN_INVENTORY_PATH": "/ruta/absoluta/mcp-sysadmin/config/inventory.json",
+        "SYSADMIN_PRODUCTION_MODE": "true",
+        "SYSADMIN_CONFIRM_TOKEN": "tu-secreto-humano"
+      }
+    }
+  }
+}
+```
+
+Requiere extensión **GitHub Copilot** con soporte MCP o extensión MCP compatible.
+
+---
+
+### Windsurf (Cascade)
+
+**Archivo:** `~/.codeium/windsurf/mcp_config.json`  
+(Windows: `%USERPROFILE%\.codeium\windsurf\mcp_config.json`)
+
+**UI:** *Cascade → MCPs (icono) → Configure* o *Settings → Cascade → Manage MCPs → Add Server*
+
+```json
+{
+  "mcpServers": {
+    "sysadmin": {
+      "command": "/ruta/absoluta/mcp-sysadmin/scripts/run-mcp.sh",
+      "env": {
+        "SYSADMIN_INVENTORY_PATH": "/ruta/absoluta/mcp-sysadmin/config/inventory.json",
+        "SYSADMIN_PRODUCTION_MODE": "true",
+        "SYSADMIN_CONFIRM_TOKEN": "tu-secreto-humano"
+      }
+    }
+  }
+}
+```
+
+Pulsa **Refresh** en la UI de MCPs tras guardar. Windsurf limita ~100 tools entre todos los servidores.
+
+---
+
+### Variables de entorno recomendadas (todos los clientes)
+
+```env
+SYSADMIN_INVENTORY_PATH=/ruta/absoluta/mcp-sysadmin/config/inventory.json
+SYSADMIN_PRODUCTION_MODE=true
+SYSADMIN_CONFIRM_TOKEN=<openssl rand -hex 32>
+SYSADMIN_READ_ONLY=false
+SYSADMIN_REQUIRE_CONFIRM=true
+PROXMOX_HOMELAB_TOKEN=...
+HETZNER_API_TOKEN=...
+CLOUDFLARE_API_TOKEN=...
+```
+
+Desarrollo local del servidor (sin cliente MCP):
 
 ```bash
 npm run dev
